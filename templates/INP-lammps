@@ -1,0 +1,75 @@
+#-----------------------------------
+# Automatically generated input file
+#-----------------------------------
+units 		metal
+#mass = grams/mole
+#distance = Angstroms
+#time = picoseconds
+#energy = eV
+#velocity = Angstroms/picosecond
+#force = eV/Angstrom
+#torque = eV
+#temperature = Kelvin
+#pressure = bars
+#dynamic viscosity = Poise
+#charge = multiple of electron charge (1.0 is a proton)
+#dipole = charge*Angstroms
+#electric field = volts/Angstrom
+#density = gram/cm^dim
+
+
+atom_style	atomic
+boundary	p p p
+#----------------------------------
+#Box and regions
+#----------------------------------
+read_data	${submitdir}/{{DATAFILE}}
+
+#----------------------------------
+#Potentials
+#----------------------------------
+
+pair_style pace/extrapolation
+pair_coeff * * ${submitdir}/{{POTENTIALFILE}}.yaml ${submitdir}/{{POTENTIALFILE}}.asi {{ELEMENTLIST}}
+
+#--------------------------------
+#Simulation
+#-------------------------------
+
+thermo          100	#Prints thermo data every 100 steps
+timestep	5.0e-4
+
+fix pace_gamma all pair 1 pace/extrapolation gamma 1
+compute max_pace_gamma all reduce max f_pace_gamma
+variable gamma_end equal c_max_pace_gamma
+
+variable dump_skip equal "c_max_pace_gamma < 5"
+dump pace_dump all custom 1 extrapolative_structures.dump element x y z f_pace_gamma
+dump_modify pace_dump skip v_dump_skip
+dump_modify pace_dump format line "%s %20.5g %20.15g %20.15g %20.15g" element {{ELEMENTLIST}} first no sort id
+
+thermo_style 	custom	step temp press vol etotal ke pe 
+dump		dmp_trj all custom 1000 trj.dmp id element x y z f_pace_gamma #Writes trajectory
+dump_modify	dmp_trj format line "%d %s %20.5g %20.15g %20.15g %20.15g" element {{ELEMENTLIST}} first no sort id
+dump		xyz_trj all xyz 1000 trj.xyz
+dump_modify	xyz_trj element {{ELEMENTLIST}}
+
+dump		xyz_trj_ex all xyz 1 extrapolative_trj.xyz
+dump_modify     xyz_trj_ex skip v_dump_skip
+dump_modify	xyz_trj_ex element {{ELEMENTLIST}}
+fix 11 all halt 1 v_gamma_end > 20
+
+variable        q equal "step"
+variable        w equal "temp"
+variable        e equal "pe"
+variable        r equal "ke"
+variable        t equal "etotal"
+variable 	y equal "cpu"
+fix             pf1 all print 100 "$q $w $e $r $t $y" file energy.dat screen no
+
+
+velocity        all  create {{TEMP}} 67 dist gaussian
+
+fix             6 all nvt temp {{TEMP}} {{TEMP}} 0.01
+
+run 		{{NUM_STEPS}}
