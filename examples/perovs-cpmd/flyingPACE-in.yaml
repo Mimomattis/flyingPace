@@ -1,0 +1,65 @@
+#This is an example input file for flyingPACE
+
+manager: 
+
+  startGen: 0
+  finalGen : 10
+  startMode: 'fromScratch' 
+  #or fromPotential
+
+  CPUHost: 'ccc160'
+  CPUUser: 'mgossler'
+
+  GPUHost: 'tinyx'
+  GPUUser: 'nfcc010h'
+  GPUJumpHost: 'cshpc.rrze.fau.de'
+
+  localWorkingDir: '/ccc160/mgossler/phd/work/project-ace/potential-Cs2AgBiCl6/onthefly'
+  CPUWorkingDir: '/ccc160/mgossler/phd/work/project-ace/potential-Cs2AgBiCl6/onthefly'
+  GPUWorkingDir: '/home/titan/nfcc/nfcc010h/work/project-ace/potential-Cs2AgBiCl6/onthefly'
+
+  CPUPython: '/ccc160/mgossler/bin/miniforge3/envs/ace/bin/python'
+  GPUPython: '/home/titan/nfcc/nfcc010h/software/privat/conda/envs/ace/bin/python3'
+  paceDir: '/home/titan/nfcc/nfcc010h/software/privat/conda/envs/ace/bin/'
+
+pacemaker:
+
+  referenceEnergyMode: 'auto'
+
+  pacemakerRunScript: 'runbatch-ace'
+  testSize: 0
+  numberOfFunctions: 1000
+  cutoff: 7.0
+  weighting: 'uniform'
+  kappa: 0.3
+  maxNumIterations : 500
+
+exploration:
+
+  datafile: 'last'
+  explorationRunScript: 'runbatch-exploration'
+  elementList : 'Ag Bi Cl Cs'
+  temp: 550.0
+  steps: 50000
+  lowerGamma : 5
+  upperGamma : 50
+  minExtrapolativeStructures: 10
+
+dft:
+  
+  dftCode:  'CPMD'
+  aimdRunScript: 'runbatch-aimd'
+  aimdInput: 'INP0'
+  scfRunScript: 'runbatch-scf'
+  scfInput: 'INP-cpmd-scf'
+
+  maxScfRuns: 100
+  pseudopotentials:
+    
+    Bi: 'Bi.uspp736.pbesol'
+    Cl: 'Cl.uspp736.pbesol'
+    Cs: 'Cs-semi.uspp736.pbesol'
+    Ag: 'Ag.uspp736.pbesol'
+
+  ecut: 30
+

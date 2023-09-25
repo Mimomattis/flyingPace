@@ -1,0 +1,144 @@
+#!/bin/bash -l
+#
+#SBATCH --job-name=runbatch-cpmd
+#SBATCH --output=%x.o%j
+#SBATCH --error=%x.e%j
+#SBATCH --time=120:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=6
+#SBATCH --cpus-per-task=12
+#SBATCH --partition=batch3
+#
+#SBATCH --distribution=block:block:block
+##SBATCH --hint=nomultithread
+#SBATCH --export=none
+#SBATCH --get-user-env
+#
+# Partitions:
+##SBATCH --partition=singlenode : fritz    ppn=72
+##SBATCH --partition=multinode  : fritz    ppn=72
+#
+## --job-name=runbatch  : name of the run
+## --time=23:59:00      : walltime for the run
+## --nodes=4            : number of nodes
+## --ntasks-per-node=2  : number of MPI processes per node
+## --cpus-per-task=8    : number of OMP tasks per MPI process
+##
+##SBATCH --dependency=afterok:<jobid>
+#
+# NOTE: The product of 'ntasks-per-node' times 'cpus-per-task' has
+#       to be equal to the number of cores per node (72 for fritz).
+#       Typical choices are:
+#
+#        4 MPI proc/node      6 MPI proc/node      8 MPI proc/node
+#       --cpus-per-task=18   --cpus-per-task=12   --cpus-per-task=9
+#
+# [ 'nodes' and 'ntasks-per-node' can be replaced by 'ntasks' which
+#   is the product of both: --ntasks= nodes * ntasks-per-node ]
+#
+##SBATCH --ntasks=32
+##SBATCH --ntasks-per-core=1
+##SBATCH --threads-per-core=1
+##SBATCH --mem=63000
+##SBATCH --hint=compute_bound
+#-----------------------------------------------------------------------
+  input="INP"
+  output="OUT"
+#
+# set workdir: Only change if you know what you are doing
+#
+#  workdir="."
+  workdir="/dev/shm/${SLURM_JOB_ID}"
+#-----------------------------------------------------------------------
+# nothing needs to be changed below this line
+#-----------------------------------------------------------------------
+  unset SLURM_EXPORT_ENV
+#
+  echo `scontrol show hostnames ${SLURM_JOB_NODELIST}`
+  echo ${SLURM_JOB_PARTITION}
+  echo "Number of OpenMP threads:     " ${SLURM_CPUS_PER_TASK}
+  echo "Number of MPI procs per node: " ${SLURM_NTASKS_PER_NODE}
+  echo "Number of MPI processes:      " ${SLURM_NTASKS}
+  echo
+#
+# load modules
+#
+  module purge
+  module load mkl/2021.4.0
+  module load ucx-mt/2.10
+  module load hcoll/2.10
+  module load openmpi/intel/4.1.2-2021.4.0.3422-hpcx2.10
+  module list
+#
+# enter the SLURM work directory:
+#
+  cd ${SLURM_SUBMIT_DIR}
+#
+# set path for pseudopotential library and CPMD executable
+#
+  export CPMD="/ccc160/bmeyer/bin/cpmd-4.3-tobias.x"
+  export SSHFS="/usr/bin/sshfs"
+  export PAR_RUN="srun"
+#  export PAR_RUN="mpirun"
+  export PP_LIBRARY_PATH="/ccc160/bmeyer/pot.cpmd/functional-PBEsol/"
+  which ${PAR_RUN}
+#
+  unset KMP_AFFINITY
+  export KMP_WARNINGS=0
+  export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
+  export OMP_PLACES=cores
+  export OMP_PROC_BIND=close,close
+  export OMP_WAIT_POLICY='ACTIVE'
+  export OMP_DYNAMIC=false
+  export OMP_ACTIVE_LEVELS=1
+  export OMP_MAX_ACTIVE_LEVELS=1
+  export MKL_DYNAMIC=0
+  export MKL_NUM_THREADS=${OMP_NUM_THREADS}
+# --report-bindings (for srun)
+  export OMPI_MCA_hwloc_base_report_bindings=true
+#  export OMP_WARNINGS=0
+#
+# create local workdir:
+#
+  if [ ${workdir} != "." ]; then
+    mkdir -p ${workdir}
+    echo ${USER}@${HOSTNAME}:${workdir}
+    echo ${SLURM_SUBMIT_DIR}/tmp-work
+  fi
+#
+  echo -n "Starting run at: "
+  date
+
+  for dir in */; 
+  do 
+    cd ${dir}
+    if [ ${workdir} != "." ]; then
+      cp -a * ${workdir}
+      mkdir -p cpmd.save
+      mv * cpmd.save
+      cd ${workdir}
+    fi
+
+    ${PAR_RUN} ${CPMD} ${input} ${PP_LIBRARY_PATH} > ${output}
+
+#
+#   move results and tidy up:
+#
+    echo
+    echo "SCF calculation in folder ${dir} is done!"
+    if [ ${workdir} != "." ]; then
+      cp -a * ${SLURM_SUBMIT_DIR}/${dir}
+      rm -rf ${workdir}/*
+      cd ${SLURM_SUBMIT_DIR}/${dir}
+      rm -rf cpmd.save
+    fi
+    cd ../
+  done
+#
+  echo -n "Stopping run at: "
+  date
+  if [ ${workdir} != "." ]; then 
+    rm -rf ${workdir}
+  fi
+
+ touch CALC_DONE

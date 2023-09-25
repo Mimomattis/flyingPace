@@ -1,0 +1,38 @@
+2023-09-25 11:02:42,864 I - Start reading file: flyingPACE-in.yaml
+2023-09-25 11:02:42,864 I - Start from learning generation: 0
+2023-09-25 11:02:42,864 I - Final learning generation will be: 10
+2023-09-25 11:02:42,864 I - Start mode: fromScratch
+2023-09-25 11:02:42,864 I - CPU python interpreter: /ccc160/mgossler/bin/miniforge3/envs/ace/bin/python
+2023-09-25 11:02:42,864 I - GPU python interpreter: /home/titan/nfcc/nfcc010h/software/privat/conda/envs/ace/bin/python3
+2023-09-25 11:02:42,864 I - CPU host: ccc160
+2023-09-25 11:02:42,864 I - GPU host: tinyx
+2023-09-25 11:02:42,864 I - CPU user: mgossler
+2023-09-25 11:02:42,864 W - No 'CPUJumpHost' provided in YAML file, assuming direct connection
+2023-09-25 11:02:42,864 I - GPU user: nfcc010h
+2023-09-25 11:02:42,864 I - GPU Jump host: cshpc.rrze.fau.de
+2023-09-25 11:02:42,883 I - Connected (version 2.0, client OpenSSH_8.4)
+2023-09-25 11:02:42,928 I - Authentication (publickey) successful!
+2023-09-25 11:02:43,135 I - CPU connection is working
+2023-09-25 11:02:43,148 I - Connected (version 2.0, client OpenSSH_8.2p1)
+2023-09-25 11:02:43,252 I - Authentication (publickey) successful!
+2023-09-25 11:02:44,315 I - Connected (version 2.0, client OpenSSH_8.2p1)
+2023-09-25 11:02:44,364 I - Authentication (publickey) successful!
+2023-09-25 11:02:44,475 I - GPU connection is working
+2023-09-25 11:02:44,475 I - ******************************
+2023-09-25 11:02:44,475 I - **  Starting with gen0  **
+2023-09-25 11:02:44,475 I - ******************************
+2023-09-25 11:02:44,475 I - Local working directory: /ccc160/mgossler/phd/work/project-ace/potential-Cs2AgBiCl6/onthefly
+2023-09-25 11:02:44,475 I - CPU working directory: /ccc160/mgossler/phd/work/project-ace/potential-Cs2AgBiCl6/onthefly
+2023-09-25 11:02:44,475 I - GPU working directory: /home/titan/nfcc/nfcc010h/work/project-ace/potential-Cs2AgBiCl6/onthefly
+2023-09-25 11:02:44,544 W - The local generation 0 already exists!
+2023-09-25 11:02:44,578 W - The remote generation 0 already exists on the CPU host!
+2023-09-25 11:02:44,793 W - The remote generation 0 already exists on the GPU host!
+             Please check if the right generation was specified
+2023-09-25 11:02:44,793 I - The DFT code used is: CPMD
+2023-09-25 11:02:44,794 I - AIMD input file: INP0
+2023-09-25 11:02:44,794 I - Run script for the AIMD calculation: runbatch-aimd
+2023-09-25 11:02:44,795 W - There already is a completed calculation in /ccc160/mgossler/phd/work/project-ace/potential-Cs2AgBiCl6/onthefly/gen0/dft
+2023-09-25 11:02:44,795 I - Reference energy mode: auto
+2023-09-25 11:02:44,796 W - There already is a file called 'dft_data.pckl.gzip' in /ccc160/mgossler/phd/work/project-ace/potential-Cs2AgBiCl6/onthefly/gen0/dft, skipping the rest
+2023-09-25 11:02:44,796 I - Run script for pacemaker run: runbatch-ace
+2023-09-25 11:02:44,843 W - There is an ongoing calculation in /home/titan/nfcc/nfcc010h/work/project-ace/potential-Cs2AgBiCl6/onthefly/gen0/train, is now waiting for it to finish
