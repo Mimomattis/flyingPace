@@ -1,1 +1,0 @@
-implemented_dft_codes = ['CPMD']
