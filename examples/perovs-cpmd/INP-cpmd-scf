@@ -34,10 +34,10 @@
  &END
 
  &SYSTEM
-    SYMMETRY
-     1
-    CELL
-    {{CELLDM}} 1.0 1.0 0.0  0.0  0.0
+    CELL VECTORS
+    {{CELLV1}} 
+    {{CELLV2}} 
+    {{CELLV3}} 
     ANGSTROM
     CUTOFF
     {{ECUT}}

@@ -653,7 +653,9 @@ def prepare_scf_calcs_from_pickle(dft_dict: dict, directory_dict: dict):
 
     for i in structures:
         structure = i
-        celldm = i.get_cell()[0][0]
+        cellv1 = "{:10.8f} {:10.8f} {:10.8f}".format(structures[0].get_cell()[0][0], structures[0].get_cell()[0][1], structures[0].get_cell()[0][2])
+        cellv2 = "{:10.8f} {:10.8f} {:10.8f}".format(structures[0].get_cell()[1][0], structures[0].get_cell()[1][1], structures[0].get_cell()[1][2])
+        cellv3 = "{:10.8f} {:10.8f} {:10.8f}".format(structures[0].get_cell()[2][0], structures[0].get_cell()[2][1], structures[0].get_cell()[2][2])
         element_dict = Counter(structure.get_chemical_symbols())
         coords = structure.get_positions()
 
@@ -673,7 +675,9 @@ def prepare_scf_calcs_from_pickle(dft_dict: dict, directory_dict: dict):
         scf_input_file_path = os.path.join(scf_dir, "INP")
         os.mkdir(scf_dir)
         output_text = input_text + structure_string
-        output_text = output_text.replace("{{CELLDM}}", "{:10.8f}".format(celldm))
+        output_text = output_text.replace("{{CELLV1}}", cellv1)
+        output_text = output_text.replace("{{CELLV2}}", cellv2)
+        output_text = output_text.replace("{{CELLV3}}", cellv3)
         output_text = output_text.replace("{{ECUT}}", str(ecut))
 
         with open(scf_input_file_path, "w") as f:
