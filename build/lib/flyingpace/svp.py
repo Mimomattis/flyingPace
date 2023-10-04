@@ -16,7 +16,9 @@ from flyingpace.input import DataReader
 
 log = logging.getLogger(__name__) 
 
-def run_pacemaker_from_dft(gpu_connection: Connection, directory_dict: dict, InputData: DataReader, **kwargs):
+def run_pacemaker(gpu_connection: Connection, directory_dict: dict, InputData: DataReader, **kwargs):
+
+    log.info(f"*** PACEMAKER RUN ***")
 
     pacemaker_dict = InputData.pacemaker_dict
     manager_dict = InputData.manager_dict
@@ -139,53 +141,53 @@ def run_activeset(gpu_connection: Connection, directory_dict: dict, manager_dict
 
     #read what is needed from manager_dict
     assert isinstance(manager_dict, dict)
-    if "paceDir" in manager_dict:
-        pace_dir = manager_dict["paceDir"]
+    if "GPUpaceDir" in manager_dict:
+        pace_dir = manager_dict["GPUpaceDir"]
     else:
-        log.warning("No 'paceDir' provided in YAML file, please specify it")
-        raise ValueError("No 'paceDir' provided in YAML file, please specify it")
+        log.warning("No 'GPUpaceDir' provided in YAML file, please specify it")
+        raise ValueError("No 'GPUpaceDir' provided in YAML file, please specify it")
 
-    #Read what is needed from directory_dict
+    #Read what is needed from directory_dict an construct paths
     assert isinstance(directory_dict, dict)
-    if (gpu_connection == None):
-        train_dir = directory_dict["local_train_dir"]
-    else:
-        train_dir = directory_dict["remote_train_dir"]
-    #Construct absolute paths for files
-    active_set_file_path = os.path.join(train_dir, '*.asi')
-    fitting_data_file_path = os.path.join(train_dir, 'fitting_data_info.pckl.gzip')
-    output_potential_file_path = os.path.join(train_dir, 'output_potential.yaml')
+    local_train_dir = directory_dict["local_train_dir"]
+    local_active_set_file_path = os.path.join(local_train_dir, 'output_potential.asi')
+    local_fitting_data_file_path = os.path.join(local_train_dir, 'fitting_data_info.pckl.gzip')
+    local_output_potential_file_path = os.path.join(local_train_dir, 'output_potential.yaml')
+    if (gpu_connection != None):
+        remote_train_dir = directory_dict["remote_train_dir"]
+        remote_active_set_file_path = os.path.join(remote_train_dir, 'output_potential.asi')
+        remote_fitting_data_file_path = os.path.join(remote_train_dir, 'fitting_data_info.pckl.gzip')
+        remote_output_potential_file_path = os.path.join(remote_train_dir, 'output_potential.yaml')
     ace_activeset_file_path = os.path.join(pace_dir, 'pace_activeset')
 
-    if (gpu_connection == None):
-        if os.path.exists(active_set_file_path):
-            log.warning(f"There already exists the .asi file {active_set_file_path}")
-            return
-    else:
-        if exists(gpu_connection, active_set_file_path):
-            log.warning(f"There already exists the .asi file {active_set_file_path}")
+    if os.path.exists(local_active_set_file_path):
+        log.warning(f"There already exists the .asi file {local_active_set_file_path}")
+        return
+    if (gpu_connection != None):
+        if exists(gpu_connection, remote_active_set_file_path):
+            log.warning(f"There already exists the .asi file {remote_active_set_file_path}")
             return
 
     #Check if all nessesary files exist
     if (gpu_connection == None):
-        if (os.path.exists(fitting_data_file_path) and\
-        os.path.exists(output_potential_file_path)):
+        if (os.path.exists(local_fitting_data_file_path) and\
+        os.path.exists(local_output_potential_file_path)):
             pass
         else: 
-            log.warning(f"Check if {fitting_data_file_path} and {output_potential_file_path} are in their place")
-            raise RuntimeError(f"Check if {fitting_data_file_path} and {output_potential_file_path} are in their place")
+            log.warning(f"Check if {local_fitting_data_file_path} and {local_output_potential_file_path} are in their place")
+            raise RuntimeError(f"Check if {local_fitting_data_file_path} and {local_output_potential_file_path} are in their place")
     elif (gpu_connection != None):
-        if (exists(gpu_connection, fitting_data_file_path) and\
-        exists(gpu_connection, output_potential_file_path)):
+        if (exists(gpu_connection, remote_fitting_data_file_path) and\
+        exists(gpu_connection, remote_output_potential_file_path)):
             pass
         else: 
-            log.warning(f"Check if {fitting_data_file_path} and {output_potential_file_path} are in their place")
-            raise RuntimeError(f"Check if {fitting_data_file_path} and {output_potential_file_path} are in their place")
+            log.warning(f"Check if {remote_fitting_data_file_path} and {remote_output_potential_file_path} are in their place")
+            raise RuntimeError(f"Check if {remote_fitting_data_file_path} and {remote_output_potential_file_path} are in their place")
 
     if (gpu_connection == None):
-        local(f"cd {train_dir} && {ace_activeset_file_path} -d {os.path.basename(fitting_data_file_path)} {os.path.basename(output_potential_file_path)}")
+        local(f"cd {local_train_dir} && {ace_activeset_file_path} -d {os.path.basename(local_fitting_data_file_path)} {os.path.basename(local_output_potential_file_path)}")
     elif (gpu_connection != None):
-        with gpu_connection.cd(train_dir):
-            gpu_connection.run(f"{ace_activeset_file_path} -d {os.path.basename(fitting_data_file_path)} {os.path.basename(output_potential_file_path)}", hide='both')
+        with gpu_connection.cd(remote_train_dir):
+            gpu_connection.run(f"{ace_activeset_file_path} -d {os.path.basename(remote_fitting_data_file_path)} {os.path.basename(remote_output_potential_file_path)}", hide='both')
 
     return

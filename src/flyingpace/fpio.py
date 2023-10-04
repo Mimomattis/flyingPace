@@ -24,8 +24,7 @@ from flyingpace.input import DataReader
 
 log = logging.getLogger(__name__)
 
-#TODO: How is this done when casting the script as a python package
-template_directory = '/ccc160/mgossler/phd/work/project-ace/flyingPACE/templates/'
+template_directory = os.path.join(os.path.dirname(__file__), 'templates')
 
 #########################################################################################
 ##                                                                                     ##
@@ -266,6 +265,11 @@ def generate_lammps_input(datafile_path: str, directory_dict: dict, InputData: D
 
     #Read what is needed from pacemaker_dict
     assert isinstance(exploration_dict, dict)
+    if "explorationStyle" in exploration_dict:
+        expolartion_style = exploration_dict["explorationStyle"]
+    else:
+        expolartion_style = None
+
     if "elementList" in exploration_dict:
         element_list = exploration_dict["elementList"]
     else:
@@ -296,8 +300,12 @@ def generate_lammps_input(datafile_path: str, directory_dict: dict, InputData: D
     assert isinstance(directory_dict, dict)
     local_exploration_dir = directory_dict["local_exploration_dir"]
 
-    lammps_inp_template_file_path = os.path.join(template_directory, "INP-lammps")
-    lammps_inp_save_file_path = os.path.join(local_exploration_dir, 'INP-lammps')
+    if (expolartion_style == "noStop"):
+        lammps_inp_template_file_path = os.path.join(template_directory, "INP-lammps-nostop")
+        lammps_inp_save_file_path = os.path.join(local_exploration_dir, 'INP-lammps')
+    else:
+        lammps_inp_template_file_path = os.path.join(template_directory, "INP-lammps")
+        lammps_inp_save_file_path = os.path.join(local_exploration_dir, 'INP-lammps')
 
     with open(lammps_inp_template_file_path, "r") as f:
         input_lammps_text = f.read()
@@ -523,7 +531,8 @@ def datafile_from_pickle(pickle_file: str, pickle_dir: str, mode:str):
 
     if (mode == 'last'):
         struc_path = os.path.join(pickle_dir, 'last_structure.data')
-        structure = df.loc[-1,'ase_atoms']
+        num_structures = df.shape[0]
+        structure = df.loc[num_structures-1,'ase_atoms']
 
     ase.io.write(struc_path, images=structure, format='lammps-data', masses=True)
 
@@ -535,6 +544,8 @@ def extrapolative_to_pickle(directory_dict: dict, InputData: DataReader):
     generations local_exploration_dir and saves the structures in a pickle file
     in local_exploration_dir
     '''
+
+    log.info(f"Gathering extrapolative structures in a pickle file")
 
     exploration_dict = InputData.exploration_dict
 
@@ -674,7 +685,7 @@ def prepare_scf_calcs_from_pickle(dft_dict: dict, directory_dict: dict):
 
     return
 
-def scfs_to_pickle(output_file_dir: str, file_pattern: str, directory_dict: dict, InputData: DataReader):
+def scfs_to_pickle(directory_dict: dict, InputData: DataReader):
     '''
     Reads a number of SCF output files in the directory output_file_dir positioned in 
     local_dft_dir. The filenames follow the fromat of {file_pattern}.* with * being a 
@@ -700,6 +711,8 @@ def scfs_to_pickle(output_file_dir: str, file_pattern: str, directory_dict: dict
     assert isinstance(directory_dict, dict)
     local_dft_dir = directory_dict["local_dft_dir"]
 
+    output_file_dir = "scf_results"
+    file_pattern = "OUT"
     pickle_file_path = os.path.join(local_dft_dir, 'new_dft_data.pckl.gzip')
     output_file_pattern_path = os.path.join(local_dft_dir, output_file_dir, file_pattern)
     
@@ -742,6 +755,17 @@ def aimd_to_pickle(directory_dict: dict, InputData: DataReader):
     dft_dict = InputData.dft_dict
     pacemaker_dict = InputData.pacemaker_dict
 
+    #Get relevant directories from directory_dict
+    assert isinstance(directory_dict, dict)
+    local_dft_dir = directory_dict["local_dft_dir"]
+    #Construct absolute paths for files
+    pickle_file_path = os.path.join(local_dft_dir, 'dft_data.pckl.gzip')
+
+    #Check wheter a pickle file already exists and skip the function if it does
+    if os.path.exists(pickle_file_path):
+        log.warning(f"There already is a file called 'dft_data.pckl.gzip' in {local_dft_dir}, skipping the rest")
+        return
+
     #Read what is needed from dft_dict
     assert isinstance(dft_dict, dict)
     if "dftCode" in dft_dict:
@@ -779,19 +803,9 @@ def aimd_to_pickle(directory_dict: dict, InputData: DataReader):
         else:
             log.warning("No 'referenceEnergies' provided in YAML file, please specify it")
             raise ValueError("No 'referenceEnergies' provided in YAML file, please specify it")
-    
-    #Get relevant directories from directory_dict
-    assert isinstance(directory_dict, dict)
-    local_working_dir = directory_dict["local_working_dir"]
-    local_dft_dir = directory_dict["local_dft_dir"]
-    #Construct absolute paths for files
-    pickle_file_path = os.path.join(local_dft_dir, 'dft_data.pckl.gzip')
-    aimd_input_file_path = os.path.join(local_dft_dir, aimd_input_file)
 
-    #Check wheter a pickle file already exists and skip the function if it does
-    if os.path.exists(pickle_file_path):
-        log.warning(f"There already is a file called 'dft_data.pckl.gzip' in {local_dft_dir}, skipping the rest")
-        return
+    #Construct absolute paths for files  
+    aimd_input_file_path = os.path.join(local_dft_dir, aimd_input_file)
 
     #Check if it there is a completed calculation
     calc_done = calc_done_in_local_dir(local_dft_dir)

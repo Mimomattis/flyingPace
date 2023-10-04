@@ -14,13 +14,14 @@ manager:
   GPUUser: 'nfcc010h'
   GPUJumpHost: 'cshpc.rrze.fau.de'
 
-  localWorkingDir: '/ccc160/mgossler/phd/work/project-ace/potential-Cs2AgBiCl6/onthefly'
-  CPUWorkingDir: '/ccc160/mgossler/phd/work/project-ace/potential-Cs2AgBiCl6/onthefly'
-  GPUWorkingDir: '/home/titan/nfcc/nfcc010h/work/project-ace/potential-Cs2AgBiCl6/onthefly'
+  localWorkingDir: '/ccc160/mgossler/phd/work/project-ace/bin-ccc162/flyingPACE/examples/perovs-cpmd'
+  CPUWorkingDir: '/ccc160/mgossler/phd/work/project-ace/examples/perovs-cpmd'
+  GPUWorkingDir: '/home/titan/nfcc/nfcc010h/work/project-ace/examples/perovs-cpmd'
 
   CPUPython: '/ccc160/mgossler/bin/miniforge3/envs/ace/bin/python'
   GPUPython: '/home/titan/nfcc/nfcc010h/software/privat/conda/envs/ace/bin/python3'
-  paceDir: '/home/titan/nfcc/nfcc010h/software/privat/conda/envs/ace/bin/'
+  CPUpaceDir: '/ccc160/mgossler/bin/miniforge3/envs/ace/bin/'
+  GPUpaceDir: '/home/titan/nfcc/nfcc010h/software/privat/conda/envs/ace/bin/'
 
 pacemaker:
 
@@ -32,14 +33,14 @@ pacemaker:
   cutoff: 7.0
   weighting: 'uniform'
   kappa: 0.3
-  maxNumIterations : 500
+  maxNumIterations : 100
 
 exploration:
 
   datafile: 'last'
   explorationRunScript: 'runbatch-exploration'
   elementList : 'Ag Bi Cl Cs'
-  temp: 550.0
+  temp: 450.0
   steps: 50000
   lowerGamma : 5
   upperGamma : 50
@@ -53,7 +54,7 @@ dft:
   scfRunScript: 'runbatch-scf'
   scfInput: 'INP-cpmd-scf'
 
-  maxScfRuns: 100
+  maxScfRuns: 300
   pseudopotentials:
     
     Bi: 'Bi.uspp736.pbesol'

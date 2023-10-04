@@ -15,8 +15,10 @@ from flyingpace.input import DataReader
 
 log = logging.getLogger(__name__)
 
-def run_md(cpu_connection: Connection, directory_dict: dict, InputData: DataReader):
-    '''Start a MD run on the given CPU cluster, given a run script and a input file'''
+def run_aimd(cpu_connection: Connection, directory_dict: dict, InputData: DataReader):
+    '''Start a AIMD run on the given CPU cluster, given a run script and a input file'''
+
+    log.info(f"*** DFT RUN ***")
 
     dft_dict = InputData.dft_dict
 
@@ -144,6 +146,8 @@ def run_scf_from_exploration(cpu_connection: Connection, directory_dict: dict, I
     local_exploration_dir
     '''
 
+    log.info(f"*** DFT RUN ***")
+
     dft_dict = InputData.dft_dict
 
     #Read what is needed from dft_dict
@@ -179,7 +183,6 @@ def run_scf_from_exploration(cpu_connection: Connection, directory_dict: dict, I
     run_script_scf_path = os.path.join(local_working_dir, run_script_scf)
 
     #Check if there is a completed or ongoing calculation in local_dft_dir or remote_dft_dir
-
     if (flyingpace.fpio.calc_done_in_local_dir(local_dft_dir)):
         log.warning(f"There already is a completed calculation in {local_dft_dir}")
         flyingpace.sshutils.gather_files(local_dft_dir, local_scf_results_dir, "scf", ["OUT"], cpu_connection)

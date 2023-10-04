@@ -8,14 +8,18 @@ from patchwork.files import exists
 
 import flyingpace.logginghelper
 
+from flyingpace.input import DataReader
+
+
 log = logging.getLogger(__name__)
 
-def create_gen_directories(gen: int, cpu_connection: Connection, gpu_connection: Connection, manager_dict: dict):
+def create_gen_directories(gen: int, cpu_connection: Connection, gpu_connection: Connection, InputData: DataReader):
     '''
     Creates all local and remote working directories for learning gerneration 'gen'
     and returns the paths for all directories in a dict
     '''
-
+    
+    manager_dict = InputData.manager_dict
     directory_dict = {}
 
     #Read what is needed from manager_dict
@@ -70,6 +74,12 @@ def create_gen_directories(gen: int, cpu_connection: Connection, gpu_connection:
     #Check if the local gen directories already exist
     if os.path.exists(directory_dict["local_gen_dir"]):
         log.warning(f"The local generation {gen} already exists!")
+        if not os.path.exists(directory_dict["local_train_dir"]):
+            local(f'mkdir {directory_dict["local_train_dir"]}')
+        if not os.path.exists(directory_dict["local_exploration_dir"]):
+            local(f'mkdir {directory_dict["local_exploration_dir"]}')
+        if not os.path.exists(directory_dict["local_dft_dir"]):
+            local(f'mkdir {directory_dict["local_dft_dir"]}')        
     else:
         #Create all local directories
         local(f'mkdir {directory_dict["local_gen_dir"]} \
@@ -81,8 +91,12 @@ def create_gen_directories(gen: int, cpu_connection: Connection, gpu_connection:
     if (cpu_connection != None):
         if (exists(cpu_connection, directory_dict["cpu_gen_dir"])):
             log.warning(f"The remote generation {gen} already exists on the CPU host!")
+            if not os.path.exists(directory_dict["remote_exploration_dir"]):
+                cpu_connection.run(f'mkdir {directory_dict["remote_exploration_dir"]}', hide='both')
+            if not os.path.exists(directory_dict["remote_dft_dir"]):
+                cpu_connection.run(f'mkdir {directory_dict["remote_dft_dir"]}', hide='both')
         else:
-            #Create all remote directories
+            #Create all cpu directories
             cpu_connection.run(f'mkdir {directory_dict["cpu_gen_dir"]}\
             {directory_dict["remote_exploration_dir"]}\
             {directory_dict["remote_dft_dir"]}', hide='both')

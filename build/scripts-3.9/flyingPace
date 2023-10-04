@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!python
 
 import argparse 
 import os
@@ -25,12 +25,11 @@ def main(args):
     args_parse = parser.parse_args(args)
     input_filename = args_parse.inputfile
 
-    #Save contents of the master input file in seperate dictonaries, one per section
+    #Read input file in InputData object, which has a dictonary for each section as attributes
     InputData = flyingpace.input.DataReader(input_filename)
     manager_dict = InputData.manager_dict
-    
 
-    #Set up the logger
+    #Set up the logger, redirect output of the Connection.run method into the logger
     log = flyingpace.logginghelper.init_logger()
     Connection.run = flyingpace.logginghelper.log_output_and_errors(Connection.run, log)
 
@@ -82,17 +81,17 @@ def main(args):
     if (gen == 0):
 
         log.info(f"******************************")
-        log.info(f"**  Starting with gen{gen}  **")
+        log.info(f"    Starting with gen{gen}    ")
         log.info(f"******************************")
         
         #Create all working directories on the local and remote clusters for the current generation
-        directory_dict = flyingpace.dirmanager.create_gen_directories(gen, cpu_connection, gpu_connection, manager_dict)
+        directory_dict = flyingpace.dirmanager.create_gen_directories(gen, cpu_connection, gpu_connection, InputData)
 
         #Decide what to do based on start mode
         if (start_mode == 'fromScratch'):
-            flyingpace.svd.run_md(cpu_connection, directory_dict, InputData)
+            flyingpace.svd.run_aimd(cpu_connection, directory_dict, InputData)
             flyingpace.fpio.aimd_to_pickle(directory_dict, InputData)
-            flyingpace.svp.run_pacemaker_from_dft(gpu_connection, directory_dict, InputData)
+            flyingpace.svp.run_pacemaker(gpu_connection, directory_dict, InputData)
             flyingpace.svl.run_explorative_md(cpu_connection, directory_dict, InputData)
             flyingpace.fpio.extrapolative_to_pickle(directory_dict, InputData)
         else:
@@ -104,16 +103,16 @@ def main(args):
     while (gen <= final_gen):
 
         log.info(f"******************************")
-        log.info(f"**  Starting with gen{gen}  **")
+        log.info(f"    Starting with gen{gen}    ")
         log.info(f"******************************")
 
         #Create all working directories on the local and remote clusters for the current generation
-        directory_dict = flyingpace.dirmanager.create_gen_directories(gen, cpu_connection, gpu_connection, manager_dict)
+        directory_dict = flyingpace.dirmanager.create_gen_directories(gen, cpu_connection, gpu_connection, InputData)
 
         flyingpace.svd.run_scf_from_exploration(cpu_connection, directory_dict, InputData)
-        flyingpace.fpio.scfs_to_pickle("scf_results", "OUT", directory_dict, InputData)
+        flyingpace.fpio.scfs_to_pickle(directory_dict, InputData)
         flyingpace.fpio.merge_pickle(directory_dict)
-        flyingpace.svp.run_pacemaker_from_dft(gpu_connection, directory_dict, InputData, restart=True)
+        flyingpace.svp.run_pacemaker(gpu_connection, directory_dict, InputData, restart=True)
         flyingpace.svl.run_explorative_md(cpu_connection, directory_dict, InputData)
         flyingpace.fpio.extrapolative_to_pickle(directory_dict, InputData)
 

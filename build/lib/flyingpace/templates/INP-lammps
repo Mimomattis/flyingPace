@@ -1,0 +1,80 @@
+#-----------------------------------
+# Automatically generated input file
+#-----------------------------------
+units 		metal
+#mass = grams/mole
+#distance = Angstroms
+#time = picoseconds
+#energy = eV
+#velocity = Angstroms/picosecond
+#force = eV/Angstrom
+#torque = eV
+#temperature = Kelvin
+#pressure = bars
+#dynamic viscosity = Poise
+#charge = multiple of electron charge (1.0 is a proton)
+#dipole = charge*Angstroms
+#electric field = volts/Angstrom
+#density = gram/cm^dim
+
+
+atom_style	atomic
+boundary	p p p
+#----------------------------------
+#Box and regions
+#----------------------------------
+read_data	${submitdir}/{{DATAFILE}}
+
+#----------------------------------
+#Potentials
+#----------------------------------
+
+pair_style pace/extrapolation
+pair_coeff * * ${submitdir}/output_potential.yaml ${submitdir}/output_potential.asi {{ELEMENTLIST}}
+
+#--------------------------------
+#Simulation
+#-------------------------------
+
+thermo          10	
+timestep	5.0e-4
+
+# compute per-atom extrapolation grade every 10 steps
+fix pace_gamma all pair 10 pace/extrapolation gamma 1
+# compute maximum extrapolation grade over complete structure
+compute max_pace_gamma all reduce max f_pace_gamma
+
+# dump extrapolative structures if c_max_pace_gamma > {{LOWERGAMMA}}, skip otherwise, check every 20 steps 
+variable dump_skip equal "c_max_pace_gamma < {{LOWERGAMMA}}"
+dump pace_dump all custom 20 extrapolative_structures.dump id type x y z f_pace_gamma
+dump_modify pace_dump skip v_dump_skip
+
+
+thermo_style 	custom	step temp press vol etotal ke pe 
+dump		dmp_trj all custom 100 trj.dmp id element x y z f_pace_gamma #Writes trajectory
+dump_modify	dmp_trj format line "%d %s %20.5g %20.15g %20.15g %20.15g" element {{ELEMENTLIST}} first no sort id
+dump		xyz_trj all xyz 100 trj.xyz
+dump_modify	xyz_trj element {{ELEMENTLIST}}
+
+dump		xyz_trj_ex all xyz 1 extrapolative_trj.xyz
+dump_modify     xyz_trj_ex skip v_dump_skip
+dump_modify	xyz_trj_ex element {{ELEMENTLIST}}
+
+# stop simulation if maximum extrapolation grade exceeds {{UPPERGAMMA}}
+variable max_pace_gamma equal c_max_pace_gamma
+fix extreme_extrapolation all halt 10 v_max_pace_gamma > {{UPPERGAMMA}}
+
+variable        q equal "step"
+variable        w equal "temp"
+variable        e equal "pe"
+variable        r equal "ke"
+variable        t equal "etotal"
+variable 	y equal "cpu"
+fix             pf1 all print 100 "$q $w $e $r $t $y" file energy.dat screen no
+
+
+velocity        all  create {{TEMP}} 67 dist gaussian
+
+fix             6 all nvt temp {{TEMP}} {{TEMP}} 0.1
+
+run 		{{NUM_STEPS}}

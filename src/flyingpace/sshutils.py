@@ -41,7 +41,7 @@ def initialize_connections(InputData: DataReader):
         log.warning("No 'GPUHost' provided in YAML file, please specify it")
         raise ValueError("No 'GPUHost' provided in YAML file, please specify it")
     
-    if (cpu_host != 'local'):
+    if (cpu_host != "local"):
         if "CPUUser" in manager_dict:
             cpu_user = manager_dict["CPUUser"]
             log.info(f"CPU user: {cpu_user}")
@@ -56,7 +56,7 @@ def initialize_connections(InputData: DataReader):
             log.warning("No 'CPUJumpHost' provided in YAML file, assuming direct connection")
             cpu_jump_host = None
             
-    if (gpu_host != 'local'):
+    if (gpu_host != "local"):
         if "GPUUser" in manager_dict:
             gpu_user = manager_dict["GPUUser"]
             log.info(f"GPU user: {gpu_user}")
@@ -71,7 +71,7 @@ def initialize_connections(InputData: DataReader):
             gpu_jump_host = None
 
     #Setup for the ssh connection
-    if (cpu_host == 'local'):
+    if (cpu_host == "local"):
         cpu_connection = None
     elif (cpu_jump_host == None):
         cpu_connection = Connection(host=cpu_host, 
@@ -85,7 +85,7 @@ def initialize_connections(InputData: DataReader):
                                             user=cpu_user
                                             ),
                                     )
-    if (gpu_host == 'local'):
+    if (gpu_host == "local"):
         gpu_connection = None
     elif (gpu_jump_host == None):
         gpu_connection = Connection(host=gpu_host, 
