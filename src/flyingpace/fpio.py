@@ -16,6 +16,7 @@ from collections import Counter
 from fabric import Connection
 from patchwork.files import exists
 
+import flyingpace.cpmd_io
 import flyingpace.dirmanager
 import flyingpace.logginghelper
 
@@ -603,40 +604,21 @@ def prepare_scf_calcs_from_pickle(dft_dict: dict, directory_dict: dict):
 
     #Read what is needed from dft_dict
     assert isinstance(dft_dict, dict)
-    if "scfInput" in dft_dict:
-        scf_input_file = dft_dict["scfInput"]
-    else:
-        log.warning("No 'scfInput' provided in YAML file, the default is 100")
-        raise ValueError("No 'scfInput' provided in YAML file, please specify it")
-
     if "maxScfRuns" in dft_dict:
         max_scf_runs = dft_dict["maxScfRuns"]
     else:
         log.warning("No 'maxScfRuns' provided in YAML file, the default is 100")
         max_scf_runs = 100
 
-    if "pseudopotentials" in dft_dict:
-        pseudopotentials = dft_dict["pseudopotentials"]
-        assert isinstance(pseudopotentials, dict)
-    else:
-        log.warning("No 'pseudopotentials' provided in YAML file, please specify it")
-        raise ValueError("No 'pseudopotentials' provided in YAML file, please specify it")
+    #Overwrite value to ensure scf calculations
+    dft_dict["dftParams"]["calculation"] = "scf"
     
-    if "ecut" in dft_dict:
-        ecut = dft_dict["ecut"]
-    else:
-        log.warning("No 'ecut' provided in YAML file, the default is 30")
-        ecut = 30
-
-
     #Get relevant directories from directory_dict
     assert isinstance(directory_dict, dict)
-    local_working_dir = directory_dict["local_working_dir"]
     local_dft_dir = directory_dict["local_dft_dir"]
     prev_local_exploration_dir = flyingpace.dirmanager.get_prev_path(directory_dict["local_exploration_dir"])
     #Construct absolute paths for files
     pickel_file_path = os.path.join(prev_local_exploration_dir, "extrapolative_structures.pckl.gzip")
-    scf_input_template_file_path = os.path.join(local_working_dir, scf_input_file)
 
     data = pd.read_pickle(pickel_file_path, compression='gzip')
 
@@ -644,44 +626,15 @@ def prepare_scf_calcs_from_pickle(dft_dict: dict, directory_dict: dict):
         log.warning(f"No extrapolative structures found!")
         raise RuntimeError(f"No extrapolative structures found!")
 
-    with open(scf_input_template_file_path, "r") as f:
-        input_text = f.read()
-
     structures = data.loc[:,'ase_atoms']
 
     scf_dir_num = 1
-
     for i in structures:
-        structure = i
-        cellv1 = "{:10.8f} {:10.8f} {:10.8f}".format(structures[0].get_cell()[0][0], structures[0].get_cell()[0][1], structures[0].get_cell()[0][2])
-        cellv2 = "{:10.8f} {:10.8f} {:10.8f}".format(structures[0].get_cell()[1][0], structures[0].get_cell()[1][1], structures[0].get_cell()[1][2])
-        cellv3 = "{:10.8f} {:10.8f} {:10.8f}".format(structures[0].get_cell()[2][0], structures[0].get_cell()[2][1], structures[0].get_cell()[2][2])
-        element_dict = Counter(structure.get_chemical_symbols())
-        coords = structure.get_positions()
 
-        structure_string = '&ATOMS\n'
-        offset = 0
-        for key in pseudopotentials:
-            structure_string += '*' + pseudopotentials[key] + ' BINARY\n LMAX=F\n'
-            species_number = element_dict[key]
-            structure_string += ' {}\n'.format(species_number) 
-            for j in range(species_number):
-                structure_string += ' {:10.6f} {:10.6f} {:10.6f} \n'.format(coords[j+offset,0],coords[j+offset,1],coords[j+offset,2])
-            offset += species_number
-            structure_string += '\n'
-        structure_string += '&END\n'
-
-        scf_dir = os.path.join(local_dft_dir, "scf." + str(scf_dir_num))
+        scf_dir = os.path.join(local_dft_dir, f"scf.{str(scf_dir_num)}")
         scf_input_file_path = os.path.join(scf_dir, "INP")
         os.mkdir(scf_dir)
-        output_text = input_text + structure_string
-        output_text = output_text.replace("{{CELLV1}}", cellv1)
-        output_text = output_text.replace("{{CELLV2}}", cellv2)
-        output_text = output_text.replace("{{CELLV3}}", cellv3)
-        output_text = output_text.replace("{{ECUT}}", str(ecut))
-
-        with open(scf_input_file_path, "w") as f:
-            print(output_text, file=f)
+        flyingpace.cpmd_io.write_cpmd_input(i, scf_input_file_path, dft_dict)
 
         scf_dir_num += 1
         if (scf_dir_num > max_scf_runs):

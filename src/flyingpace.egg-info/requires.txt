@@ -1,5 +1,0 @@
-fabric
-patchwork
-ase
-numpy
-pandas
