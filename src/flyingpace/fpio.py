@@ -29,6 +29,25 @@ template_directory = os.path.join(os.path.dirname(__file__), 'templates')
 
 #########################################################################################
 ##                                                                                     ##
+##                             Functions for general I/O                               ##
+##                                                                                     ##
+#########################################################################################
+
+def check_start_file_type(start_file: str):
+
+    if start_file.endswith(".data"):
+        start_file_type = 'lammps_data_file'
+    elif start_file.endswith(".yaml"):
+        start_file_type = "potential_file"
+    elif start_file.endswith(".pckl.gzip"):
+        start_file_type = "pickle_file"
+    else:
+        start_file_type = "dft_input_file"
+    
+    return start_file_type
+
+#########################################################################################
+##                                                                                     ##
 ##                          Functions to check for idempotency                         ##
 ##                                                                                     ##
 #########################################################################################
@@ -266,62 +285,187 @@ def generate_lammps_input(datafile_path: str, directory_dict: dict, InputData: D
 
     #Read what is needed from pacemaker_dict
     assert isinstance(exploration_dict, dict)
-    if "explorationStyle" in exploration_dict:
-        expolartion_style = exploration_dict["explorationStyle"]
+    if "explorationParams" in exploration_dict:
+        input_data_dict = exploration_dict["explorationParams"]
     else:
-        expolartion_style = None
-
-    if "elementList" in exploration_dict:
-        element_list = exploration_dict["elementList"]
-    else:
-        log.warning("No 'elementList' provided in YAML file, please specify it")
-        raise ValueError("No 'elementList' provided in YAML file, please specify it")
-    
-    if "temp" in exploration_dict:
-        temp = exploration_dict["temp"]
-    else:
-        temp = 400.0
-
-    if "steps" in exploration_dict:
-        steps = exploration_dict["steps"]
-    else:
-        steps = 50000
-
-    if "lowerGamma" in exploration_dict:
-        lower_gamma = exploration_dict["lowerGamma"]
-    else:
-        lower_gamma = 5
-
-    if "upperGamma" in exploration_dict:
-        upper_gamma = exploration_dict["upperGamma"]
-    else:
-        upper_gamma = 25
+        log.warning("No 'explorationParams' provided in YAML file, please provide it")
+        raise ValueError("No 'explorationParams' provided in YAML file, please provide it")
 
     #Read what is needed from directory_dict
     assert isinstance(directory_dict, dict)
     local_exploration_dir = directory_dict["local_exploration_dir"]
+    input_file_path = os.path.join(local_exploration_dir, 'INP-lammps')
 
-    if (expolartion_style == "noStop"):
-        lammps_inp_template_file_path = os.path.join(template_directory, "INP-lammps-nostop")
-        lammps_inp_save_file_path = os.path.join(local_exploration_dir, 'INP-lammps')
+    input_options = {
+    "datafile" : "read_data ${{submitdir}}/{datafile}\n",
+    "thermo" : "thermo {thermo}\n",
+    "timestep" : "timestep {timestep}\n",
+    "explorationStyle" : {
+        
+        "stop" : '\n#dump extrapolative structures if c_max_pace_gamma > {lowerGamma},\
+ skip otherwise, check every {gammaStride} steps\n\
+variable dump_skip equal "c_max_pace_gamma < {lowerGamma}"\n\
+dump pace_dump all custom {gammaStride} extrapolative_structures.dump id type x y z f_pace_gamma\n\
+dump_modify pace_dump skip v_dump_skip\n\
+\n#stop simulation if maximum extrapolation grade exceeds {upperGamma}\n\
+variable max_pace_gamma equal c_max_pace_gamma\n\
+fix extreme_extrapolation all halt {gammaStride} v_max_pace_gamma > {upperGamma}\n\n',
+        
+        "noStop" : '\n#dump extrapolative structures if {upperGamma} > c_max_pace_gamma > {lowerGamma},\
+ skip otherwise, check every {gammaStride} steps\n\
+variable dump_skip equal "(c_max_pace_gamma < {lowerGamma}) || (c_max_pace_gamma > {upperGamma})"\n\
+dump pace_dump all custom {gammaStride} extrapolative_structures.dump id type x y z f_pace_gamma\n\
+dump_modify pace_dump skip v_dump_skip\n'
+
+    },
+    
+    "trjStep" : '\n#dump trajectory every {trjStep} steps\n\
+dump dmp_trj all custom {trjStep} trj.dmp id element x y z f_pace_gamma\n\
+dump_modify dmp_trj format line "%d %s %20.5g %20.15g %20.15g %20.15g" element {element_string} first no sort id\n',
+    
+    "runType" : {
+        
+        'NVT' : '\nvelocity all create {startTemp} 67 dist gaussian\n\
+fix 6 all nvt temp {startTemp} {endTemp} $(100.0*dt)\n\
+run {steps}',
+        
+        'NPT' : '\nvelocity all create {startTemp} 67 dist gaussian\n\
+fix 6 all npt temp {startTemp} {endTemp} $(100.0*dt) iso 1.0 1.0 $(1000.0*dt)\n\
+run {steps}',
+    },           
+}
+
+    input = ""
+    input += "#-----------------------------------\n\
+#Automatically generated input file\n\
+#-----------------------------------\n\n"
+
+    #Start with the general section
+
+    input += "units metal\natom_style atomic\nboundary p p p\n"
+
+    #Start with data section 
+
+    input += "\n#-----------------------------------\n\
+#Box and regions\n\
+#-----------------------------------\n\n"
+
+    if "datafile" in exploration_dict:
+        if (exploration_dict["datafile"] == 'last'):
+            input_data_dict["datafile"] = 'last_structure.data'
+        elif (exploration_dict["datafile"] == 'randomFromTrain'):
+            input_data_dict["datafile"] = 'random_structure.data'
+        else:
+            input_data_dict["datafile"] = exploration_dict["datafile"]
+            
+        input += input_options["datafile"]
     else:
-        lammps_inp_template_file_path = os.path.join(template_directory, "INP-lammps")
-        lammps_inp_save_file_path = os.path.join(local_exploration_dir, 'INP-lammps')
+        log.warning("'datafile' is not provided in 'exploration' section, please specify it")
+        raise ValueError("'datafile' is not provided in 'exploration' section, please specify it")
+    
+    data_file_path = os.path.join(local_exploration_dir, input_data_dict["datafile"])
+    
+    #Start with the potential section
+    
+    input += "\n#-----------------------------------\n\
+#Potentials\n\
+#-----------------------------------\n\n"
 
-    with open(lammps_inp_template_file_path, "r") as f:
-        input_lammps_text = f.read()
+    input += "pair_style pace/extrapolation\n"
 
-    input_lammps_text = input_lammps_text.replace("{{DATAFILE}}", os.path.basename(datafile_path))
-    input_lammps_text = input_lammps_text.replace("{{ELEMENTLIST}}", element_list)
-    input_lammps_text = input_lammps_text.replace("{{TEMP}}", str(temp))
-    input_lammps_text = input_lammps_text.replace("{{NUM_STEPS}}", str(steps))
-    input_lammps_text = input_lammps_text.replace("{{LOWERGAMMA}}", str(lower_gamma))
-    input_lammps_text = input_lammps_text.replace("{{UPPERGAMMA}}", str(upper_gamma))
+    #Read element list from datafile
+    with open(data_file_path, 'r') as f:
+        data_file = f.readlines()
 
-    with open(lammps_inp_save_file_path, "w") as f:
-        print(input_lammps_text, file=f)
+    for idx, line in enumerate(data_file):
+        if "atom types" in line:
+            num_types = int(line.split()[0])
+        if "Masses" in line:
+            masses_idx = idx
+    input_data_dict["element_list"] = []        
+    for i in range(num_types):
+        input_data_dict["element_list"].append(data_file[i+masses_idx+2].split()[-1])
+    input_data_dict["element_string"] = " ".join(input_data_dict["element_list"])
 
-    log.info(f"Input file is written into {lammps_inp_save_file_path}")
+    input += "pair_coeff * * ${{submitdir}}/output_potential.yaml\
+ ${{submitdir}}/output_potential.asi {element_string}\n"
+
+    #Start with the simulation section
+    
+    input += "\n#-----------------------------------\n\
+#Simulation\n\
+#-----------------------------------\n\n"
+
+    #Print thermodynamic information
+    if not "thermo" in input_data_dict:
+        input_data_dict["thermo"] = 100
+    input += input_options["thermo"]
+    input += "thermo_style custom step temp press vol etotal ke pe\n"
+    
+    if not "timestep" in input_data_dict:
+        input_data_dict["timestep"] = 5.0e-4
+    input += input_options["timestep"]
+
+    #Extrapolation grade assessment    
+    if not "gammaStride" in input_data_dict:
+        input_data_dict["gammaStride"] = 10
+    if not "lowerGamma" in input_data_dict:
+        input_data_dict["lowerGamma"] = 5
+    if not "upperGamma" in input_data_dict:
+        input_data_dict["upperGamma"] = 25
+    
+    input += "\n#compute per-atom extrapolation grade every {gammaStride} steps\n"
+    input += "fix pace_gamma all pair {gammaStride} pace/extrapolation gamma 1\n"
+    input += "\n#compute maximum extrapolation grade over complete structure\n"
+    input += "compute max_pace_gamma all reduce max f_pace_gamma\n"
+
+    #Exploration style
+    if "explorationStyle" in input_data_dict:
+        if input_data_dict["explorationStyle"] in input_options["explorationStyle"]: 
+            input += input_options["explorationStyle"][input_data_dict["explorationStyle"]]
+        else: 
+            log.warning("'explorationStyle' type in 'explorationParams' is not known")
+            raise ValueError("'explorationStyle' type in 'explorationParams' is not known")
+    else:
+        input_data_dict["explorationStyle"] = "stop"
+        input += input_options["explorationStyle"][input_data_dict["explorationStyle"]]
+    
+    #Dump trajectory
+    if not "trjStep" in input_data_dict:
+        input_data_dict["trjStep"] = 100
+    input += input_options["trjStep"]
+
+    #Temperature for run
+    if "temp" in input_data_dict:
+        input_data_dict["startTemp"] = input_data_dict["temp"]
+        input_data_dict["endTemp"] = input_data_dict["temp"]
+    elif "tempRamp" in input_data_dict:
+        input_data_dict["startTemp"] = input_data_dict["tempRamp"].split()[0]
+        input_data_dict["endTemp"] = input_data_dict["tempRamp"].split()[1]
+    else: 
+        input_data_dict["temp"] = 400.0
+        input_data_dict["startTemp"] = input_data_dict["temp"]
+        input_data_dict["endTemp"] = input_data_dict["temp"]
+
+    #Type of run
+    input += "\n#Start run"
+    if "runType" in input_data_dict:
+        if input_data_dict["runType"] in input_options["runType"]:
+            input += input_options["runType"][input_data_dict["runType"]]
+        else: 
+            log.warning("'runType' type in 'explorationParams' is not known")
+            raise ValueError("'runType' type in 'explorationParams' is not known")
+    else:
+        input_data_dict["runType"] = "NVT"
+        input += input_options["runType"][input_data_dict["runType"]]
+
+    #Set values in template string
+    input = input.format(**input_data_dict)
+
+    with open(input_file_path, "w") as f:
+        print(input, file=f)
+
+    log.info(f"Input file is written into {input_file_path}")
 
     return
 
@@ -379,94 +523,6 @@ def check_dft_job_type(dft_input_file_path: str, dft_code: str):
         raise NotImplementedError(f"The chosen DFT code '{dft_code}' is not implemented")
     
     return
-
-def read_cpmd_scf(outfile_path: str):
-    '''
-    Reads a given CPMD outputfile and returns wheter the 
-    calculation converged, the chemical symbols,
-    the cell, the positions, the forces and the total energy
-    Units: Angstrom, eV and eV/Angstrom
-    '''
-    
-    with open(outfile_path, 'r') as f:
-        cpmd_lines = f.readlines()
-
-    #Section identifiers
-    cpmd_no_convergence = "NO CONVERGENCE"
-    cpmd_atoms = "*** ATOMS ***"
-    cpmd_cell = "*** SUPERCELL ***"
-    cpmd_pos_force = "FINAL RESULTS"
-    cpmd_total_energy = "TOTAL ENERGY ="
-
-    indexes = {
-        cpmd_no_convergence: [],
-        cpmd_atoms: [],
-        cpmd_cell: [],
-        cpmd_pos_force: [],
-        cpmd_total_energy: [],
-    }
-
-    for idx, line in enumerate(cpmd_lines):
-        for identifier in indexes:
-            if identifier in line:
-                indexes[identifier].append(idx)
-
-    #returns false if indexes[cpmd_no_convergence] is empty
-    # -> if list not empty -> returns true -> convergence = False
-    # -> if list empty -> returns false -> convergence = True
-    if indexes[cpmd_no_convergence]:
-        convergence = False
-        symbols = None
-        cell = None
-        positions = None
-        forces = None
-        energy = None
-    else:
-        convergence = True
-
-    #Parse atoms symbols
-    symbols = []
-    symbols_idx = indexes[cpmd_atoms][0]+2
-    symbol_line = cpmd_lines[symbols_idx].strip().split()
-    atom_number = symbol_line[0]
-    break_line = "****************************************************************"
-    while (atom_number != break_line):
-        chemical_symbol = symbol_line[1]
-        symbols.append(chemical_symbol)
-        symbols_idx += 1
-        symbol_line = cpmd_lines[symbols_idx].strip().split()
-        atom_number = symbol_line[0]
-    number_of_atoms = len(symbols)
-
-    #Parse cell
-    cell = []
-    cell_idx = indexes[cpmd_cell][0]+5
-    for i in range(3):
-        vec = cpmd_lines[cell_idx].strip().split()[3:6]
-        cell.append(vec)
-        cell_idx += 1
-    cell = np.asarray(cell, dtype=float) * Bohr
-
-    #Parse positions and forces
-    positions = []
-    forces = []
-    pos_force_idx = indexes[cpmd_pos_force][0]+5
-    for i in range(number_of_atoms):
-        position_line = cpmd_lines[pos_force_idx].strip().split()[2:5]
-        force_line = cpmd_lines[pos_force_idx].strip().split()[5:8]
-        positions.append(position_line)
-        forces.append(force_line)
-        pos_force_idx += 1
-    
-    positions = np.asarray(positions, dtype=float) * Bohr
-    forces = np.asarray(forces, dtype=float) * Hartree / Bohr
-
-    #Parse energy 
-    energy = None
-    energy_idx = indexes[cpmd_total_energy][-1]
-    energy = float(cpmd_lines[energy_idx].strip().split()[4]) * Hartree
-
-    return convergence, symbols, cell, positions, forces, energy 
 
 #########################################################################################
 ##                                                                                     ##
@@ -550,13 +606,41 @@ def extrapolative_to_pickle(directory_dict: dict, InputData: DataReader):
 
     exploration_dict = InputData.exploration_dict
 
-    #Read what is needed from dft_dict
+    #read what is needed from exploration_dict
     assert isinstance(exploration_dict, dict)
-    if "elementList" in exploration_dict:
-        element_list = exploration_dict["elementList"]
+    if "datafile" in exploration_dict:
+        datafile = exploration_dict["datafile"]
+        log.info(f"Data file for exploration: {datafile}")
     else:
-        log.warning("No 'elementList' provided in YAML file, please specify it")
-        raise ValueError("No 'elementList' provided in YAML file, please specify it")
+        log.warning("No 'datafile' provided in YAML file, the defalut is 'last'")
+        datafile = 'last'
+    #Get element list from datafile
+    local_working_dir = directory_dict["local_working_dir"]
+    local_train_dir = directory_dict["local_train_dir"]
+    prev_local_exploration_dir = flyingpace.dirmanager.get_prev_path(directory_dict["local_exploration_dir"])
+    if (datafile == 'randomFromTrain'):
+        if (os.path.exists(os.path.join(prev_local_exploration_dir, 'random_structure.data'))):
+            datafile_path = os.path.join(prev_local_exploration_dir, 'random_structure.data')
+        else: 
+            datafile_path = flyingpace.fpio.datafile_from_pickle('dft_data.pckl.gzip', local_train_dir, 'random')
+    elif (datafile == 'last'):
+        if (os.path.exists(os.path.join(prev_local_exploration_dir, 'last_structure.data'))):
+            datafile_path = os.path.join(prev_local_exploration_dir, 'last_structure.data')
+        else: 
+            datafile_path = flyingpace.fpio.datafile_from_pickle('dft_data.pckl.gzip', local_train_dir, 'last')
+    else:
+        datafile_path = os.path.join(local_working_dir, datafile)
+    with open(datafile_path, 'r') as f:
+        data_file = f.readlines()
+    for idx, line in enumerate(data_file):
+        if "atom types" in line:
+            num_types = int(line.split()[0])
+        if "Masses" in line:
+            masses_idx = idx
+    element_list = []        
+    for i in range(num_types):
+        element_list.append(data_file[i+masses_idx+2].split()[-1])
+    element_string = " ".join(element_list)
     
     #Get relevant directories from directory_dict
     assert isinstance(directory_dict, dict)
@@ -575,7 +659,7 @@ def extrapolative_to_pickle(directory_dict: dict, InputData: DataReader):
         log.warning(f"The file {extrapolative_structures_path}, does not exist, cannot gather extrapolative structures to pickle file")
         raise RuntimeError(f"The file {extrapolative_structures_path}, does not exist, cannot gather extrapolative structures to pickle file")
     
-    species_to_element_dict = {i + 1: e for i, e in enumerate(element_list.split())}
+    species_to_element_dict = {i + 1: e for i, e in enumerate(element_string.split())}
     
     with open(extrapolative_structures_path) as f:
         structures = read_lammps_dump_text(f, index=slice(None))
@@ -604,6 +688,14 @@ def prepare_scf_calcs_from_pickle(dft_dict: dict, directory_dict: dict):
 
     #Read what is needed from dft_dict
     assert isinstance(dft_dict, dict)
+    if "dftCode" in dft_dict:
+        dft_code = dft_dict["dftCode"]
+        if (dft_code in implemented_dft_codes):
+            pass
+        else:
+            log.warning("The chosen DFT code is not implemented")
+            raise NotImplementedError("The chosen DFT code is not implemented")
+        
     if "maxScfRuns" in dft_dict:
         max_scf_runs = dft_dict["maxScfRuns"]
     else:
@@ -634,7 +726,7 @@ def prepare_scf_calcs_from_pickle(dft_dict: dict, directory_dict: dict):
         scf_dir = os.path.join(local_dft_dir, f"scf.{str(scf_dir_num)}")
         scf_input_file_path = os.path.join(scf_dir, "INP")
         os.mkdir(scf_dir)
-        flyingpace.cpmd_io.write_cpmd_input(i, scf_input_file_path, dft_dict)
+        write_input_map[dft_code](i, scf_input_file_path, dft_dict)
 
         scf_dir_num += 1
         if (scf_dir_num > max_scf_runs):
@@ -804,115 +896,14 @@ def aimd_to_pickle(directory_dict: dict, InputData: DataReader):
 
     return
 
-def read_cpmd_md(aimd_input_file_path: str, local_dft_dir:str):
-    '''
-    Reads output data from a CPMD MD run in a given folder 
-    and saves it in dft_data.pckl.gzip, which can be processed by pacemaker
-    Limitations:
-     - Needs GEOMETRY.xyz, ENERGIES, TRAJECTORY, FTRAJECTORY and INPUTFILE to 
-       exist in local_dft_dir to function
-     - This function will yield nonsense if the aimd run is not done in a cubic cell
-    '''
-
-    geometry_file_path = os.path.join(local_dft_dir, 'GEOMETRY.xyz')
-    energies_file_path = os.path.join(local_dft_dir, 'ENERGIES')
-    trajectory_file_path = os.path.join(local_dft_dir, 'TRAJECTORY')
-    forces_file_path = os.path.join(local_dft_dir, 'FTRAJECTORY')
-
-    #Check if all nessesary files exist
-    if (os.path.exists(aimd_input_file_path) and\
-    os.path.exists(energies_file_path) and\
-    os.path.exists(trajectory_file_path) and\
-    os.path.exists(forces_file_path)):
-        pass
-    else: 
-        log.warning(f"Check if there are {os.path.basename(aimd_input_file_path)}, ENERGIES,\
-        TRAJECTORY and FTRAJECTORY files in {local_dft_dir}")
-        raise RuntimeError(f"Check if there are {os.path.basename(aimd_input_file_path)}, ENERGIES,\
-        TRAJECTORY and FTRAJECTORY files in {local_dft_dir}")
-    
-    def get_cell(celldm):
-        cell = [[celldm, 0.0, 0.0],
-                [0.0, celldm, 0.0],
-                [0.0, 0.0, celldm]]
-        return cell
-
-    #Data lists for all configurations
-    energy_list = []
-    forces_list = []
-    atoms_list = []
-
-    #Read number of atoms
-    with open(geometry_file_path, 'r') as f:
-        num_at = len(f.readlines())-2
-
-    #Read number of steps of the trajectory
-    with open(trajectory_file_path, 'r') as f:
-        num_steps = int(len(f.readlines())/num_at)
-        
-    #Read stride/sample number of the trajectory
-    with open(energies_file_path, 'r') as f:
-        stride = int(len(f.readlines())/num_steps)
-
-    #Read the atomic configuration
-    f = open(geometry_file_path)
-    f.readline()
-    f.readline()
-    symbols = []
-    for lines in range(num_at):
-        symbols.append(f.readline().split()[0])
-
-    #Read in relevant files
-    ef = open(energies_file_path, 'r')
-    tf = open(trajectory_file_path, 'r')
-    ff = open(forces_file_path, 'r')
-
-    #Read cell parameter
-    cmd1 = f"grep -A1 'CELL' " + aimd_input_file_path + " | tail -1 | awk '{print $1}' "
-    celldm = float(os.popen(cmd1).read())
-    with open (aimd_input_file_path) as f:
-        input_data = f.read()
-    if not ('ANGSTROM' in input_data):
-        celldm = celldm * Bohr
-    cell = get_cell(celldm)
-
-    #Loop through configurations in MD
-    for i in range(num_steps):
-
-        pos = np.zeros((num_at, 3))
-        force = np.zeros((num_at, 3))
-        energy = float(ef.readline().split()[3])
-
-        for j in range(num_at):
-
-            #Read positions and forces per configuration
-            tfline = tf.readline()
-            ffline = ff.readline()
-            pos[j,:] = ([float(k) for k in tfline.split()[1:4]])
-            force[j,:] = ([float(k) for k in ffline.split()[7:10]])
-
-        #Convert units
-        energy = energy * Hartree
-        pos = pos * Bohr
-        #pos.tolist()
-        force = force * (Hartree/Bohr)
-        #force.tolist()
-
-        #Add to lists containing ALL data
-        energy_list.append(energy)
-        forces_list.append(force)
-        atoms_list.append(Atoms(symbols=symbols, positions=pos, cell=cell, pbc=True))
-
-        #Skip not needed lines in ENERGIES file
-        for j in range(stride-1):
-            ef.readline()
-
-    return symbols, energy_list, forces_list, atoms_list
-
 read_md_map = {
-    "CPMD" :    read_cpmd_md 
+    "CPMD" :    flyingpace.cpmd_io.read_cpmd_md 
 }
 
 read_scf_map = {
-    "CPMD" :    read_cpmd_scf
+    "CPMD" :    flyingpace.cpmd_io.read_cpmd_scf
+}
+
+write_input_map = {
+    "CPMD" :    flyingpace.cpmd_io.write_cpmd_input
 }
