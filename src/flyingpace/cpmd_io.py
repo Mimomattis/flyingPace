@@ -219,28 +219,35 @@ def write_cpmd_input(structure: Atoms, input_file_path: str, dft_dict: dict):
     input_options = {
         'calculation' : {
             'scf' : '    OPTIMIZE WAVEFUNCTION\n',
-            'aimd' : '    MOLECULAR DYNAMICS BO\n',
+            'md' : '    MOLECULAR DYNAMICS BO\n',
         },
 
-        'restart_mode' : {
-            'from_scratch' : '    INITIALIZE WAVEFUNCTION RANDOM\n',
+        'restartMode' : {
+            'fromScratch' : '    INITIALIZE WAVEFUNCTION RANDOM\n',
         },
 
-        'max_iter' : '    MAXITER\n        {max_iter}\n',
-        'conv_orbital' : '    CONVERGENCE ORBITALS\n        {conv_orbital}\n',
-        'spline_points' : '    SPLINE POINTS\n        {spline_points}\n',
+        #Input options regarding moleculra dynamics
+        'maxStep' : '    MAXSTEP\n        {maxStep}\n',
+        'timeStep' : '    TIMESTEP\n        {timeStep}\n',
+        'trajStep' : '    TRAJECTORY SAMPLE XYZ FORCES\n        {trajStep}\n',
+        'noseParams' : '    NOSE PARAMETERS\n        {noseParams}\n',
+        'temp' : '    NOSE IONS MASSIVE\n        {temp}\n',
+
+        #Input options regarding scf
+        'maxIter' : '    MAXITER\n        {maxIter}\n',
+        'convOrbital' : '    CONVERGENCE ORBITALS\n        {convOrbital}\n',
+        'splinePoints' : '    SPLINE POINTS\n        {splinePoints}\n',
         'functional' :{
-            'pbe_sol' : '    GRADIENT CORRECTION PBESX PBESC\n',
+            'pbeSol' : '    GRADIENT CORRECTION PBESX PBESC\n',
         },
-    
-        'pw_cutoff' : '    CUTOFF\n        {pw_cutoff}\n',   
+        'pwCutoff' : '    CUTOFF\n        {pwCutoff}\n',   
     }
 
-    cpmd_technical_block = "    ODIIS NO_RESET=-1\n        10\n    MEMORY BIG\n    REAL SPACE WFN KEEP\n\
-PRINT FORCES ON\n    RNLSM_AUTOTUNE\n        20\n    USE_BATCHFFT ON\n    ALL2ALL_BATCHSIZE \n       4000\n\
-TUNE_FFT_BATCHSIZE ON\n        10\n    BLOCKSIZE_USPP\n        500\n    PARA_USE_MPI_IN_PLACE\n\
-PARA_BUFF_SIZE\n        0\n    PARA_STACK_BUFF_SIZE\n        0\n    DISTRIBUTED FNL ROT OFF\n\
-USE_OVERLAPPING_COMM_COMP ON\n    USE_ELPA OFF\n"
+    cpmd_technical_block = "    ODIIS NO_RESET=-1\n        10\n    MEMORY BIG\n\
+    PRINT FORCES ON\n    RNLSM_AUTOTUNE\n        20\n    USE_BATCHFFT ON\n    ALL2ALL_BATCHSIZE \n       4000\n\
+    TUNE_FFT_BATCHSIZE ON\n        10\n    BLOCKSIZE_USPP\n        500\n    PARA_USE_MPI_IN_PLACE\n\
+    PARA_BUFF_SIZE\n        0\n    PARA_STACK_BUFF_SIZE\n        0\n    DISTRIBUTED FNL ROT OFF\n\
+    USE_OVERLAPPING_COMM_COMP ON\n    USE_ELPA OFF\n"
 
     #Start with empty input string
     input = ""
@@ -260,32 +267,70 @@ USE_OVERLAPPING_COMM_COMP ON\n    USE_ELPA OFF\n"
         log.warning("'calculation' type is not provided in 'dftParams' section, please specify it")
         raise ValueError("'calculation' type is not provided in 'dftParams' section, please specify it")
         
-    if "restart_mode" in input_data_dict:
-        if input_data_dict["restart_mode"] in input_options["restart_mode"]:
-            input += input_options["restart_mode"][input_data_dict["restart_mode"]]
+    if "restartMode" in input_data_dict:
+        if input_data_dict["restartMode"] in input_options["restartMode"]:
+            input += input_options["restartMode"][input_data_dict["restartMode"]]
         else:
-            input += input_options["restart_mode"]["from_scratch"]
+            input += input_options["restartMode"]["fromScratch"]
     else: 
-        input += input_options["restart_mode"]["from_scratch"]
+        input += input_options["restartMode"]["fromScratch"]
 
-    if "max_iter" in input_data_dict:
-        input += input_options["max_iter"]
-    else:
-        input_data_dict["max_iter"] = 100
-        input += input_options["max_iter"]
-    
-    if "conv_orbital" in input_data_dict:
-        input += input_options["conv_orbital"]
-    else:
-        input_data_dict["conv_orbital"] = '1.d-6'
-        input += input_options["conv_orbital"]
-    
-    if "spline_points" in input_data_dict:
-        input += input_options["spline_points"]
-    else:
-        input_data_dict["spline_points"] = 5000
-        input += input_options["spline_points"]
+    #For MD simulations
+    if (input_data_dict["calculation"] == 'md'):
+         
+        if "maxStep" in input_data_dict:
+            input += input_options["maxStep"]
+        else:
+            log.warning("'maxStep' type is not provided in 'dftParams' section, please specify it")
+            raise ValueError("'maxStep' type in 'dftParams' is not known")
+        
+        if "timeStep" in input_data_dict:
+            input += input_options["timeStep"]
+        else:
+            log.warning("'timeStep' type is not provided in 'dftParams' section, please specify it")
+            raise ValueError("'timeStep' type in 'dftParams' is not known")
+        
+        if "trajStep" in input_data_dict:
+            input += input_options["trajStep"]
+        else:
+            log.warning("'trajStep' type is not provided in 'dftParams' section, please specify it")
+            raise ValueError("'trajStep' type in 'dftParams' is not known")
+        
+        if "noseParams" in input_data_dict:
+            input += input_options["noseParams"]
+        else:
+            log.warning("'noseParams' type is not provided in 'dftParams' section, please specify it")
+            raise ValueError("'noseParams' type in 'dftParams' is not known")
+        
+        if "temp" in input_data_dict:
+            input += input_options["temp"]
+        else:
+            log.warning("'temp' type is not provided in 'dftParams' section, please specify it")
+            raise ValueError("'temp' type in 'dftParams' is not known")
+        
+        input += "    EXTRAPOLATE WFN STORE\n        6\n"
+        input += "    STORE\n        {maxStep}\n"
+        input += f"    SUBTRACT COMVEL\n        {int(int(input_data_dict['maxStep'])/100)}\n"
 
+    if "maxIter" in input_data_dict:
+        input += input_options["maxIter"]
+    else:
+        input_data_dict["maxIter"] = 100
+        input += input_options["maxIter"]
+    
+    if "convOrbital" in input_data_dict:
+        input += input_options["convOrbital"]
+    else:
+        input_data_dict["convOrbital"] = '1.d-6'
+        input += input_options["convOrbital"]
+    
+    if "splinePoints" in input_data_dict:
+        input += input_options["splinePoints"]
+    else:
+        input_data_dict["splinePoints"] = 5000
+        input += input_options["splinePoints"]
+
+    input += "    REAL SPACE WFN KEEP\n"
         
     input += cpmd_technical_block
     input += "&END\n\n"
@@ -300,11 +345,11 @@ USE_OVERLAPPING_COMM_COMP ON\n    USE_ELPA OFF\n"
         cell.append("{:10.8f} {:10.8f} {:10.8f}".format(structure.get_cell()[i][0], structure.get_cell()[i][1], structure.get_cell()[i][2]))
         input += f"        {cell[i]}\n"
     
-    if "pw_cutoff" in input_data_dict:
-        input += input_options["pw_cutoff"]
+    if "pwCutoff" in input_data_dict:
+        input += input_options["pwCutoff"]
     else:
-        input_data_dict["pw_cutoff"] = 30
-        input += input_options["pw_cutoff"]
+        input_data_dict["pwCutoff"] = 30
+        input += input_options["pwCutoff"]
 
     input += "&END\n\n"
     

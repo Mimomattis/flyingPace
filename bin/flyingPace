@@ -52,12 +52,19 @@ def main(args):
         gen = 5 
         log.info(f"Final learning generation will be: {str(final_gen)}")
 
-    if "startMode" in manager_dict:
-        start_mode = manager_dict["startMode"]
-        log.info(f"Start mode: {start_mode}")
+    if "systemName" in manager_dict:
+        system_name = manager_dict["systemName"]
+        log.info(f"systemName: {system_name}")
     else:
-        log.warning("No 'startMode' provided in YAML file, please specify it")
-        raise ValueError("No 'startMode' provided in YAML file, please specify it")
+        log.warning("No 'systemName' provided in YAML file, please specify it")
+        raise ValueError("No 'systemName' provided in YAML file, please specify it")
+
+    if "startFile" in manager_dict:
+        start_file = manager_dict["startFile"]
+        log.info(f"Start file: {start_file}")
+    else:
+        log.warning("No 'startFile' provided in YAML file, please specify it")
+        raise ValueError("No 'startFile' provided in YAML file, please specify it")
     
     #TODO:Is there a better way to do this, maybe activate the cond env on the clusters
     if "CPUPython" in manager_dict:
@@ -87,16 +94,22 @@ def main(args):
         #Create all working directories on the local and remote clusters for the current generation
         directory_dict = flyingpace.dirmanager.create_gen_directories(gen, cpu_connection, gpu_connection, InputData)
 
-        #Decide what to do based on start mode
-        if (start_mode == 'fromScratch'):
+        #Read the start file type
+        start_file_type = flyingpace.fpio.check_start_file_type(start_file)  
+        InputData.change_data("manager_dict", "startFileType", start_file_type)
+        if (start_file_type == "lammps_data_file"):
+            InputData.change_data("manager_dict", "dataFilePath", os.path.join(directory_dict["local_working_dir"], start_file))
+
+        #Decide what to do based on start file type
+        if (start_file_type == "dft_input_file" or start_file_type == "lammps_data_file"):
             flyingpace.svd.run_aimd(cpu_connection, directory_dict, InputData)
             flyingpace.fpio.aimd_to_pickle(directory_dict, InputData)
             flyingpace.svp.run_pacemaker(gpu_connection, directory_dict, InputData)
             flyingpace.svl.run_explorative_md(cpu_connection, directory_dict, InputData)
             flyingpace.fpio.extrapolative_to_pickle(directory_dict, InputData)
         else:
-            log.warning(f"This startMode is not implemented!")
-            raise ValueError(f"This startMode is not implemented!")
+            log.warning(f"This start Mode is not implemented!")
+            raise ValueError(f"This start Mode is not implemented!")
         
         gen += 1
 

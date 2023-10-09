@@ -21,6 +21,7 @@ def run_aimd(cpu_connection: Connection, directory_dict: dict, InputData: DataRe
     log.info(f"*** DFT RUN ***")
 
     dft_dict = InputData.dft_dict
+    manager_dict = InputData.manager_dict
 
     #Read what is needed from dft_dict
     assert isinstance(dft_dict, dict)
@@ -35,13 +36,6 @@ def run_aimd(cpu_connection: Connection, directory_dict: dict, InputData: DataRe
     else:
         log.warning("No 'dftCode' provided in YAML file, please specify it")
         raise ValueError("No 'dftCode' provided in YAML file, please specify it")
-    
-    if "aimdInput" in dft_dict:
-        aimd_input_file = dft_dict["aimdInput"]
-        log.info(f"AIMD input file: {aimd_input_file}")
-    else:
-        log.warning("No 'aimdInput' provided in YAML file, please specify it")
-        raise ValueError("No 'aimdInput' provided in YAML file, please specify it")
 
     if "aimdRunScript" in dft_dict:
         run_script_aimd = dft_dict["aimdRunScript"]
@@ -49,6 +43,11 @@ def run_aimd(cpu_connection: Connection, directory_dict: dict, InputData: DataRe
     else:
         log.warning("No 'aimdRunScript' provided in YAML file, please specify it")
         raise ValueError("No 'aimdRunScript' provided in YAML file, please specify it")
+    
+    #Read what is needed from manager_dict
+    assert isinstance(manager_dict, dict)
+    start_file = manager_dict["startFile"]
+    start_file_type = manager_dict["startFileType"]
 
     #Get relevant directories from directory_dict
     assert isinstance(directory_dict, dict)
@@ -56,6 +55,14 @@ def run_aimd(cpu_connection: Connection, directory_dict: dict, InputData: DataRe
     local_dft_dir = directory_dict["local_dft_dir"]
     if (cpu_connection != None):
         remote_dft_dir = directory_dict["remote_dft_dir"]
+
+    if (start_file_type == "dft_input_file"):
+        aimd_input_file = start_file
+    elif (start_file_type == "lammps_data_file"):
+        log.info(f"Start file is a lammps data file, will write AIMD input file automatically")
+        flyingpace.fpio.write_aimd_input_file(directory_dict, InputData)
+        aimd_input_file = 'INP0'
+
     #Construct absolute paths for files
     aimd_input_file_path = os.path.join(local_working_dir, aimd_input_file)
     run_script_aimd_path = os.path.join(local_working_dir, run_script_aimd)
@@ -226,7 +233,7 @@ def run_scf_from_exploration(cpu_connection: Connection, directory_dict: dict, I
     local(f"cp {run_script_scf_path} {local_dft_dir}")
 
     #Prepare all a folder and an input file for each scf calculation
-    flyingpace.fpio.prepare_scf_calcs_from_pickle(dft_dict, directory_dict)
+    flyingpace.fpio.prepare_scf_calcs_from_pickle(directory_dict, InputData)
 
     #Copy local_dft_dir to remote_dft_dir
     if (cpu_connection != None):

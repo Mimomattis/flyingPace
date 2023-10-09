@@ -10,6 +10,7 @@ import time
 import yaml
 
 from ase import Atoms
+from ase.io.lammpsdata import read_lammps_data
 from ase.io.lammpsrun import read_lammps_dump_text
 from ase.units import Bohr, Hartree, Ang, eV
 from collections import Counter
@@ -522,6 +523,46 @@ def check_dft_job_type(dft_input_file_path: str, dft_code: str):
         log.info(f"The chosen DFT code '{dft_code}' is not implemented")
         raise NotImplementedError(f"The chosen DFT code '{dft_code}' is not implemented")
     
+        return
+
+def write_aimd_input_file(directory_dict: dict, InputData: DataReader):
+    '''
+    Writes a AIMD input file from the current DataFile an writes it to local_working_dir as 'INP0'
+    '''
+
+    dft_dict = InputData.dft_dict
+    manager_dict = InputData.manager_dict
+
+    #Read what is needed from dft_dict
+    assert isinstance(dft_dict, dict)
+    if "dftCode" in dft_dict:
+        dft_code = dft_dict["dftCode"]
+        if (dft_code in implemented_dft_codes):
+            pass
+        else:
+            log.warning("The chosen DFT code is not implemented")
+            raise NotImplementedError("The chosen DFT code is not implemented")
+        
+    assert isinstance(manager_dict, dict)
+    if "dataFilePath" in manager_dict:
+        data_file_path = manager_dict["dataFilePath"]
+    else:
+        log.warning("'DataFilePath' not yet assigned")
+        raise ValueError("'DataFilePath' not yet assigned")
+    
+    #Overwrite value to ensure scf calculations
+    dft_dict["dftParams"]["calculation"] = "md"
+    
+    #Get relevant directories from directory_dict
+    assert isinstance(directory_dict, dict)
+    local_working_dir = directory_dict["local_working_dir"]
+
+    with open(data_file_path) as f:
+        structure = read_lammps_data(f)
+
+    scf_input_file_path = os.path.join(local_working_dir, "INP0")
+    write_input_map[dft_code](structure, scf_input_file_path, dft_dict)
+
     return
 
 #########################################################################################
@@ -680,11 +721,13 @@ def extrapolative_to_pickle(directory_dict: dict, InputData: DataReader):
 
     return
 
-def prepare_scf_calcs_from_pickle(dft_dict: dict, directory_dict: dict):
+def prepare_scf_calcs_from_pickle(directory_dict: dict, InputData: DataReader):
     '''
     Reads 'extrapolative_structures.pckl.gzip' from prev_local_exploration_dir
     and constructs CPMD scf input files from them in local_dft_dir, one folder for each calculation
     '''
+
+    dft_dict = InputData.dft_dict
 
     #Read what is needed from dft_dict
     assert isinstance(dft_dict, dict)
