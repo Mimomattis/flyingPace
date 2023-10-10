@@ -211,7 +211,7 @@ def gather_files(dir: str, gather_dir: str, dir_pattern: str, file_list: list, r
 
     if (remote_connection != None):
         if exists(remote_connection, gather_dir):
-            print(f"{gather_dir} already exists!")
+            log.warning(f"{gather_dir} already exists!")
             return
             
         with remote_connection as c:

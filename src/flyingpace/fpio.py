@@ -7,7 +7,6 @@ import pandas as pd
 import random
 import sys
 import time
-import yaml
 
 from ase import Atoms
 from ase.io.lammpsdata import read_lammps_data
@@ -37,7 +36,7 @@ template_directory = os.path.join(os.path.dirname(__file__), 'templates')
 def check_start_file_type(start_file: str):
 
     if start_file.endswith(".data"):
-        start_file_type = 'lammps_data_file'
+        start_file_type = 'lammps_datafile'
     elif start_file.endswith(".yaml"):
         start_file_type = "potential_file"
     elif start_file.endswith(".pckl.gzip"):
@@ -276,13 +275,14 @@ def generate_pace_input(dataset_file_path: str, directory_dict: dict, InputData:
 ##                                                                                     ##
 #########################################################################################
 
-def generate_lammps_input(datafile_path: str, directory_dict: dict, InputData: DataReader):
+def generate_lammps_input(directory_dict: dict, InputData: DataReader):
     '''
     Generate a inputfile for lammps based on data from the master input file
     and save it in the current generation local_exploration_dir
     '''
 
     exploration_dict = InputData.exploration_dict
+    manager_dict = InputData.manager_dict
 
     #Read what is needed from pacemaker_dict
     assert isinstance(exploration_dict, dict)
@@ -322,7 +322,7 @@ dump_modify pace_dump skip v_dump_skip\n'
     
     "trjStep" : '\n#dump trajectory every {trjStep} steps\n\
 dump dmp_trj all custom {trjStep} trj.dmp id element x y z f_pace_gamma\n\
-dump_modify dmp_trj format line "%d %s %20.5g %20.15g %20.15g %20.15g" element {element_string} first no sort id\n',
+dump_modify dmp_trj format line "%d %s %20.5g %20.15g %20.15g %20.15g" element {elementList} first no sort id\n',
     
     "runType" : {
         
@@ -351,21 +351,12 @@ run {steps}',
 #Box and regions\n\
 #-----------------------------------\n\n"
 
-    if "datafile" in exploration_dict:
-        if (exploration_dict["datafile"] == 'last'):
-            input_data_dict["datafile"] = 'last_structure.data'
-        elif (exploration_dict["datafile"] == 'randomFromTrain'):
-            input_data_dict["datafile"] = 'random_structure.data'
-        else:
-            input_data_dict["datafile"] = exploration_dict["datafile"]
+    datafile_path = manager_dict["dataFilePath"]
+    datafile = os.path.basename(datafile_path)
+    input_data_dict["datafile"] = datafile
             
-        input += input_options["datafile"]
-    else:
-        log.warning("'datafile' is not provided in 'exploration' section, please specify it")
-        raise ValueError("'datafile' is not provided in 'exploration' section, please specify it")
-    
-    data_file_path = os.path.join(local_exploration_dir, input_data_dict["datafile"])
-    
+    input += input_options["datafile"]
+        
     #Start with the potential section
     
     input += "\n#-----------------------------------\n\
@@ -374,22 +365,11 @@ run {steps}',
 
     input += "pair_style pace/extrapolation\n"
 
-    #Read element list from datafile
-    with open(data_file_path, 'r') as f:
-        data_file = f.readlines()
-
-    for idx, line in enumerate(data_file):
-        if "atom types" in line:
-            num_types = int(line.split()[0])
-        if "Masses" in line:
-            masses_idx = idx
-    input_data_dict["element_list"] = []        
-    for i in range(num_types):
-        input_data_dict["element_list"].append(data_file[i+masses_idx+2].split()[-1])
-    input_data_dict["element_string"] = " ".join(input_data_dict["element_list"])
-
+    #Read elementlist from manager_dict
+    input_data_dict["elementList"] = manager_dict["elementList"]
+    
     input += "pair_coeff * * ${{submitdir}}/output_potential.yaml\
- ${{submitdir}}/output_potential.asi {element_string}\n"
+ ${{submitdir}}/output_potential.asi {elementList}\n"
 
     #Start with the simulation section
     
@@ -470,6 +450,32 @@ run {steps}',
 
     return
 
+
+def element_list_from_datafile(InputData: DataReader):
+
+    manager_dict = InputData.manager_dict
+
+    datafile_path = manager_dict["dataFilePath"]
+
+    with open(datafile_path, 'r') as f:
+        datafile = f.readlines()
+
+    for idx, line in enumerate(datafile):
+        if "atom types" in line:
+            num_types = int(line.split()[0])
+        if "Masses" in line:
+            masses_idx = idx
+
+    element_list = []        
+    for i in range(num_types):
+        element_list.append(datafile[i+masses_idx+2].split()[-1])
+
+    element_list = " ".join(element_list)
+
+    InputData.change_data("manager_dict", "elementList", element_list)
+
+    return
+
 #########################################################################################
 ##                                                                                     ##
 ##                          Functions for handling dft I/O                             ##
@@ -545,7 +551,7 @@ def write_aimd_input_file(directory_dict: dict, InputData: DataReader):
         
     assert isinstance(manager_dict, dict)
     if "dataFilePath" in manager_dict:
-        data_file_path = manager_dict["dataFilePath"]
+        datafile_path = manager_dict["dataFilePath"]
     else:
         log.warning("'DataFilePath' not yet assigned")
         raise ValueError("'DataFilePath' not yet assigned")
@@ -557,13 +563,49 @@ def write_aimd_input_file(directory_dict: dict, InputData: DataReader):
     assert isinstance(directory_dict, dict)
     local_working_dir = directory_dict["local_working_dir"]
 
-    with open(data_file_path) as f:
+    with open(datafile_path) as f:
         structure = read_lammps_data(f)
 
     scf_input_file_path = os.path.join(local_working_dir, "INP0")
     write_input_map[dft_code](structure, scf_input_file_path, dft_dict)
 
     return
+
+def datafile_from_dft_input(directory_dict: str, InputData: DataReader):
+
+    manager_dict = InputData.manager_dict
+    dft_dict = InputData.dft_dict
+
+    assert isinstance(dft_dict, dict)
+    if "dftCode" in dft_dict:
+        dft_code = dft_dict["dftCode"]
+        log.info(f"The DFT code used is: {dft_code}")
+        if (dft_code in implemented_dft_codes):
+            pass
+        else:
+            log.warning("The chosen DFT code is not implemented")
+            raise NotImplementedError("The chosen DFT code is not implemented")
+    else:
+        log.warning("No 'dftCode' provided in YAML file, please specify it")
+        raise ValueError("No 'dftCode' provided in YAML file, please specify it")
+        
+    assert isinstance(manager_dict, dict)
+    start_file = manager_dict["startFile"]
+    system_name = manager_dict["systemName"]
+
+    #Get relevant directories from directory_dict
+    assert isinstance(directory_dict, dict)
+    local_working_dir = directory_dict["local_working_dir"]
+
+    datafile_path = os.path.join(local_working_dir, f"{system_name}.data")
+    start_file_path = os.path.join(local_working_dir, start_file)
+
+    structure = read_input_map[dft_code](start_file_path)
+
+    ase.io.write(datafile_path, images=structure, format='lammps-data', masses=True)
+
+    return
+
 
 #########################################################################################
 ##                                                                                     ##
@@ -645,43 +687,10 @@ def extrapolative_to_pickle(directory_dict: dict, InputData: DataReader):
 
     log.info(f"Gathering extrapolative structures in a pickle file")
 
-    exploration_dict = InputData.exploration_dict
+    manager_dict = InputData.manager_dict
 
-    #read what is needed from exploration_dict
-    assert isinstance(exploration_dict, dict)
-    if "datafile" in exploration_dict:
-        datafile = exploration_dict["datafile"]
-        log.info(f"Data file for exploration: {datafile}")
-    else:
-        log.warning("No 'datafile' provided in YAML file, the defalut is 'last'")
-        datafile = 'last'
-    #Get element list from datafile
-    local_working_dir = directory_dict["local_working_dir"]
-    local_train_dir = directory_dict["local_train_dir"]
-    prev_local_exploration_dir = flyingpace.dirmanager.get_prev_path(directory_dict["local_exploration_dir"])
-    if (datafile == 'randomFromTrain'):
-        if (os.path.exists(os.path.join(prev_local_exploration_dir, 'random_structure.data'))):
-            datafile_path = os.path.join(prev_local_exploration_dir, 'random_structure.data')
-        else: 
-            datafile_path = flyingpace.fpio.datafile_from_pickle('dft_data.pckl.gzip', local_train_dir, 'random')
-    elif (datafile == 'last'):
-        if (os.path.exists(os.path.join(prev_local_exploration_dir, 'last_structure.data'))):
-            datafile_path = os.path.join(prev_local_exploration_dir, 'last_structure.data')
-        else: 
-            datafile_path = flyingpace.fpio.datafile_from_pickle('dft_data.pckl.gzip', local_train_dir, 'last')
-    else:
-        datafile_path = os.path.join(local_working_dir, datafile)
-    with open(datafile_path, 'r') as f:
-        data_file = f.readlines()
-    for idx, line in enumerate(data_file):
-        if "atom types" in line:
-            num_types = int(line.split()[0])
-        if "Masses" in line:
-            masses_idx = idx
-    element_list = []        
-    for i in range(num_types):
-        element_list.append(data_file[i+masses_idx+2].split()[-1])
-    element_string = " ".join(element_list)
+    #Read elementlist from manager_dict
+    element_list = manager_dict["elementList"]
     
     #Get relevant directories from directory_dict
     assert isinstance(directory_dict, dict)
@@ -700,7 +709,7 @@ def extrapolative_to_pickle(directory_dict: dict, InputData: DataReader):
         log.warning(f"The file {extrapolative_structures_path}, does not exist, cannot gather extrapolative structures to pickle file")
         raise RuntimeError(f"The file {extrapolative_structures_path}, does not exist, cannot gather extrapolative structures to pickle file")
     
-    species_to_element_dict = {i + 1: e for i, e in enumerate(element_string.split())}
+    species_to_element_dict = {i + 1: e for i, e in enumerate(element_list.split())}
     
     with open(extrapolative_structures_path) as f:
         structures = read_lammps_dump_text(f, index=slice(None))
@@ -845,6 +854,7 @@ def aimd_to_pickle(directory_dict: dict, InputData: DataReader):
     '''
 
     dft_dict = InputData.dft_dict
+    manager_dict = InputData.manager_dict
     pacemaker_dict = InputData.pacemaker_dict
 
     #Get relevant directories from directory_dict
@@ -871,12 +881,6 @@ def aimd_to_pickle(directory_dict: dict, InputData: DataReader):
         log.warning("No 'dftCode' provided in YAML file, please specify it")
         raise ValueError("No 'dftCode' provided in YAML file, please specify it")
     
-    if "aimdInput" in dft_dict:
-        aimd_input_file = dft_dict["aimdInput"]
-    else:
-        log.warning("No 'aimdInput' provided in YAML file, please specify it")
-        raise ValueError("No 'aimdInput' provided in YAML file, please specify it")
-    
     #Read what is needed from pacemaker_dict
     assert isinstance(pacemaker_dict, dict)
     if "referenceEnergyMode" in pacemaker_dict:
@@ -897,7 +901,7 @@ def aimd_to_pickle(directory_dict: dict, InputData: DataReader):
             raise ValueError("No 'referenceEnergies' provided in YAML file, please specify it")
 
     #Construct absolute paths for files  
-    aimd_input_file_path = os.path.join(local_dft_dir, aimd_input_file)
+    aimd_input_file_path = manager_dict["startInputFilePath"]
 
     #Check if it there is a completed calculation
     calc_done = calc_done_in_local_dir(local_dft_dir)
@@ -950,3 +954,8 @@ read_scf_map = {
 write_input_map = {
     "CPMD" :    flyingpace.cpmd_io.write_cpmd_input
 }
+
+read_input_map = {
+    "CPMD" :    flyingpace.cpmd_io.read_cpmd_input
+}
+

@@ -46,8 +46,7 @@ def run_aimd(cpu_connection: Connection, directory_dict: dict, InputData: DataRe
     
     #Read what is needed from manager_dict
     assert isinstance(manager_dict, dict)
-    start_file = manager_dict["startFile"]
-    start_file_type = manager_dict["startFileType"]
+    aimd_input_file_path = manager_dict["startInputFilePath"]
 
     #Get relevant directories from directory_dict
     assert isinstance(directory_dict, dict)
@@ -56,15 +55,7 @@ def run_aimd(cpu_connection: Connection, directory_dict: dict, InputData: DataRe
     if (cpu_connection != None):
         remote_dft_dir = directory_dict["remote_dft_dir"]
 
-    if (start_file_type == "dft_input_file"):
-        aimd_input_file = start_file
-    elif (start_file_type == "lammps_data_file"):
-        log.info(f"Start file is a lammps data file, will write AIMD input file automatically")
-        flyingpace.fpio.write_aimd_input_file(directory_dict, InputData)
-        aimd_input_file = 'INP0'
-
     #Construct absolute paths for files
-    aimd_input_file_path = os.path.join(local_working_dir, aimd_input_file)
     run_script_aimd_path = os.path.join(local_working_dir, run_script_aimd)
 
     #Check if there is a completed or ongoing calculation in local_dft_dir or remote_dft_dir

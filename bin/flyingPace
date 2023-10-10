@@ -84,24 +84,33 @@ def main(args):
     #Establish the ssh connections based on the input parameters
     cpu_connection, gpu_connection = flyingpace.sshutils.initialize_connections(InputData)
 
+    #Create all initial working directories on the local and remote clusters
+    directory_dict = flyingpace.dirmanager.create_gen_directories(0, cpu_connection, gpu_connection, InputData)
+
+    #Read the start file type and write all needed files to start
+    start_file_type = flyingpace.fpio.check_start_file_type(start_file)  
+    InputData.change_data("manager_dict", "startFileType", start_file_type)
+    if (start_file_type == "dft_input_file"):
+        InputData.change_data("manager_dict", "startInputFilePath", os.path.join(directory_dict["local_working_dir"], start_file))
+        flyingpace.fpio.datafile_from_dft_input(directory_dict, InputData)
+        InputData.change_data("manager_dict", "dataFilePath", os.path.join(directory_dict["local_working_dir"], f"{system_name}.data"))
+    elif (start_file_type == "lammps_datafile"):
+        InputData.change_data("manager_dict", "dataFilePath", os.path.join(directory_dict["local_working_dir"], start_file))
+        flyingpace.fpio.write_aimd_input_file(directory_dict, InputData)
+        InputData.change_data("manager_dict", "startInputFilePath", os.path.join(directory_dict["local_working_dir"], f"INP0"))
+
+    #Add element list from the datafile to manager_dict
+    flyingpace.fpio.element_list_from_datafile(InputData)
+
     #Start with the section that is only relevant for the 0th learning generation
     if (gen == 0):
 
         log.info(f"******************************")
         log.info(f"    Starting with gen{gen}    ")
         log.info(f"******************************")
-        
-        #Create all working directories on the local and remote clusters for the current generation
-        directory_dict = flyingpace.dirmanager.create_gen_directories(gen, cpu_connection, gpu_connection, InputData)
-
-        #Read the start file type
-        start_file_type = flyingpace.fpio.check_start_file_type(start_file)  
-        InputData.change_data("manager_dict", "startFileType", start_file_type)
-        if (start_file_type == "lammps_data_file"):
-            InputData.change_data("manager_dict", "dataFilePath", os.path.join(directory_dict["local_working_dir"], start_file))
 
         #Decide what to do based on start file type
-        if (start_file_type == "dft_input_file" or start_file_type == "lammps_data_file"):
+        if (start_file_type == "dft_input_file" or start_file_type == "lammps_datafile"):
             flyingpace.svd.run_aimd(cpu_connection, directory_dict, InputData)
             flyingpace.fpio.aimd_to_pickle(directory_dict, InputData)
             flyingpace.svp.run_pacemaker(gpu_connection, directory_dict, InputData)

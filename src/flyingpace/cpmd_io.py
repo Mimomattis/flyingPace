@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 
 import pandas as pd
 import numpy as np
@@ -11,6 +12,74 @@ from ase.units import Bohr, Hartree, Ang, eV
 from collections import Counter
 
 log = logging.getLogger(__name__)
+
+def read_cpmd_input(cpmd_input_file_path: str):
+
+    with open(cpmd_input_file_path, 'r') as f:
+        cpmd_input_lines = f.readlines()
+
+    #Section identifiers
+    cpmd_cell_vectors = "CELL VECTORS"
+    cpmd_atoms = "&ATOMS"
+    species_block = "*"
+
+    #Indexes for sections
+    indexes = {
+        cpmd_cell_vectors: [],
+        cpmd_atoms: [],
+        species_block: [],
+    }
+
+    for idx, line in enumerate(cpmd_input_lines):
+        for identifier in indexes:
+            if identifier in line:
+                indexes[identifier].append(idx)
+    
+    #Find out the used unit system for distance
+    for line in cpmd_input_lines:
+        line = line.strip()
+        if (line == 'ANGSTROM'):
+            units = 'angstrom'
+            break
+        else:
+            units = 'bohr'
+
+    #Parse cell
+    vec_idx = indexes[cpmd_cell_vectors][0]+1
+    cell = []
+    for i in range(3):
+        vec = cpmd_input_lines[vec_idx].strip().split()
+        cell.append(vec)
+        vec_idx += 1
+
+    if (units == 'angstrom'):
+        cell = np.asarray(cell, dtype=float)
+    elif (units == 'bohr'):
+        cell = np.asarray(cell, dtype=float) * Bohr
+
+    symbols = []
+    positions = []
+
+    for i in indexes[species_block]:
+    
+        chemical_species = re.search('\*([A-Za-z]{1,2})', cpmd_input_lines[i]).group(1)
+        num_atoms = int(cpmd_input_lines[i+2])
+    
+        for j in range(num_atoms):
+        
+            symbols.append(chemical_species)
+            positions.append(cpmd_input_lines[i+j+3].strip().split())
+    
+    if (units == 'angstrom'):
+        positions = np.asarray(positions, dtype=float)
+    elif (units == 'bohr'):
+        positions = np.asarray(positions, dtype=float) * Bohr
+
+    structure = Atoms(symbols=symbols, positions=positions, cell=cell, pbc=True)
+
+    return structure
+
+
 
 def read_cpmd_md(aimd_input_file_path: str, local_dft_dir:str):
     '''

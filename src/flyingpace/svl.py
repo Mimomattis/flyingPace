@@ -26,16 +26,10 @@ def run_explorative_md(cpu_connection: Connection, directory_dict: dict, InputDa
     log.info(f"*** EXPLORATION RUN ***")
 
     exploration_dict = InputData.exploration_dict
+    manager_dict = InputData.manager_dict
 
-    #Read what is needed from pacemaker_dict
+    #Read what is needed from exploration_dict
     assert isinstance(exploration_dict, dict)
-    if "datafile" in exploration_dict:
-        datafile = exploration_dict["datafile"]
-        log.info(f"Data file for exploration: {datafile}")
-    else:
-        log.warning("No 'datafile' provided in YAML file, the defalut is 'last'")
-        datafile = 'last'
-
     if "select" in exploration_dict:
         select = True
     else:
@@ -60,21 +54,8 @@ def run_explorative_md(cpu_connection: Connection, directory_dict: dict, InputDa
     run_script_exploration_path = os.path.join(local_working_dir, run_script_exploration)
     potential_file_path = os.path.join(local_train_dir, 'output_potential.yaml')
     active_set_file_path = os.path.join(local_train_dir, 'output_potential.asi')
-    #Generate datafile from trainingset in local_train_dir 
-    #or copy it from prev_local_exploration_dir if existent 
-    #or copy it fromlocal_working_dir
-    if (datafile == 'randomFromTrain'):
-        if (os.path.exists(os.path.join(prev_local_exploration_dir, 'random_structure.data'))):
-            datafile_path = os.path.join(prev_local_exploration_dir, 'random_structure.data')
-        else: 
-            datafile_path = flyingpace.fpio.datafile_from_pickle('dft_data.pckl.gzip', local_train_dir, 'random')
-    elif (datafile == 'last'):
-        if (os.path.exists(os.path.join(prev_local_exploration_dir, 'last_structure.data'))):
-            datafile_path = os.path.join(prev_local_exploration_dir, 'last_structure.data')
-        else: 
-            datafile_path = flyingpace.fpio.datafile_from_pickle('dft_data.pckl.gzip', local_train_dir, 'last')
-    else:
-        datafile_path = os.path.join(local_working_dir, datafile)
+    #Get datafile_path from manager_dict
+    datafile_path = manager_dict["dataFilePath"]
 
     #Check if there is a completed or ongoing calculation in local_exploration_dir or remote_exploration_dir
 
@@ -130,7 +111,7 @@ def run_explorative_md(cpu_connection: Connection, directory_dict: dict, InputDa
     local(f"cp {datafile_path} {run_script_exploration_path} {potential_file_path} {active_set_file_path} {local_exploration_dir}")
 
     #Create input file and save it to local_train_dir
-    flyingpace.fpio.generate_lammps_input(datafile_path, directory_dict, InputData)
+    flyingpace.fpio.generate_lammps_input(directory_dict, InputData)
 
     #Copy local_exploration_dir to remote_exploration_dir
     if (cpu_connection != None):
@@ -170,13 +151,6 @@ def run_pace_select(cpu_connection: Connection, directory_dict: dict, InputData:
 
     #read what is needed from exploration_dict
     assert isinstance(exploration_dict, dict)
-    if "datafile" in exploration_dict:
-        datafile = exploration_dict["datafile"]
-        log.info(f"Data file for exploration: {datafile}")
-    else:
-        log.warning("No 'datafile' provided in YAML file, the defalut is 'last'")
-        datafile = 'last'
-    
     if "select" in exploration_dict:
         select_num = exploration_dict["select"]
     else:
@@ -207,33 +181,8 @@ def run_pace_select(cpu_connection: Connection, directory_dict: dict, InputData:
         remote_output_pickle_file_path = os.path.join(remote_exploration_dir, 'extrapolative_structures.pckl.gzip')
     ace_select_file_path = os.path.join(pace_dir, 'pace_select')
 
-    #Get element list from datafile
-    local_working_dir = directory_dict["local_working_dir"]
-    local_train_dir = directory_dict["local_train_dir"]
-    prev_local_exploration_dir = flyingpace.dirmanager.get_prev_path(directory_dict["local_exploration_dir"])
-    if (datafile == 'randomFromTrain'):
-        if (os.path.exists(os.path.join(prev_local_exploration_dir, 'random_structure.data'))):
-            datafile_path = os.path.join(prev_local_exploration_dir, 'random_structure.data')
-        else: 
-            datafile_path = flyingpace.fpio.datafile_from_pickle('dft_data.pckl.gzip', local_train_dir, 'random')
-    elif (datafile == 'last'):
-        if (os.path.exists(os.path.join(prev_local_exploration_dir, 'last_structure.data'))):
-            datafile_path = os.path.join(prev_local_exploration_dir, 'last_structure.data')
-        else: 
-            datafile_path = flyingpace.fpio.datafile_from_pickle('dft_data.pckl.gzip', local_train_dir, 'last')
-    else:
-        datafile_path = os.path.join(local_working_dir, datafile)
-    with open(datafile_path, 'r') as f:
-        data_file = f.readlines()
-    for idx, line in enumerate(data_file):
-        if "atom types" in line:
-            num_types = int(line.split()[0])
-        if "Masses" in line:
-            masses_idx = idx
-    element_list = []        
-    for i in range(num_types):
-        element_list.append(data_file[i+masses_idx+2].split()[-1])
-    element_string = " ".join(element_list)
+    #Read elementlist from manager_dict
+    element_list = manager_dict["elementList"]
 
     if os.path.exists(local_output_pickle_file_path):
             log.info(f"The pickle file {local_output_pickle_file_path} already exists")
@@ -262,12 +211,12 @@ def run_pace_select(cpu_connection: Connection, directory_dict: dict, InputData:
             raise RuntimeError(f"Check if {remote_active_set_file_path}, {remote_potential_file_path} and {remote_extrapolative_dump_file_path} are in their place")
 
     if (cpu_connection == None):
-        local(f'cd {local_exploration_dir} && {ace_select_file_path} -p {local_potential_file_path} -a {local_active_set_file_path} -e "{element_string}"\
+        local(f'cd {local_exploration_dir} && {ace_select_file_path} -p {local_potential_file_path} -a {local_active_set_file_path} -e "{element_list}"\
         -m {select_num} {local_extrapolative_dump_file_path}')
         local(f"yes | cp {local_selected_file_path} {local_output_pickle_file_path}")
     elif (cpu_connection != None):
         with cpu_connection.cd(remote_exploration_dir):
-            cpu_connection.run(f'cd {remote_exploration_dir} && {ace_select_file_path} -p {remote_potential_file_path} -a {remote_active_set_file_path} -e "{element_string}"\
+            cpu_connection.run(f'cd {remote_exploration_dir} && {ace_select_file_path} -p {remote_potential_file_path} -a {remote_active_set_file_path} -e "{element_list}"\
             -m {select_num} {remote_extrapolative_dump_file_path}', hide='both')
             cpu_connection.run(f"yes | cp {remote_selected_file_path} {remote_output_pickle_file_path}", hide='both')
 
