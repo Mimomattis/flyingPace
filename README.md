@@ -30,6 +30,35 @@ the manager section is started with
 
 `manager:`
 
-Possible input parameter:  
+Possible input parameters:  
 
-`startGen: 0` (required, default: 0)
+`  startGen: 0` (required, default: 0)  
+
+- Defines the learning generation from which learning is started. If 'gen{n}' is already existent in the  
+local working directory, learning can be started from 'gen{n+1}'
+
+'  finalGen : 10' (required, default: 10)  
+
+- Defines the final learning generation
+
+'  systemName: str' (required)
+
+- Short descriptive name for the system
+
+'  CPUHost: str, None' (required)
+
+- `str` Hostname of the machine, on which the cpu calculations are done (DFT and LAMMPS calculations).  
+Assumes that there is a functioning installation of LAMMPS and the used DFT code on the cpu machine,  
+there are workingslurm scripts 'explorationRunScript' for LAMMPS and 'aimdRunScript' and 'scfRunScript' 
+for the DFT code. Assumes also a working authentification on the cpu machine with ssh-key
+
+- `None` The cpu calculations are done (DFT and LAMMPS calculations) are done locally
+
+'  CPUUser: str' (required)
+
+- Username for the cpu machine 
+
+'  CPUJumpHost' (optional)
+
+- If the connection to the cpu machine is only opssible via a jump server, provide the hostname with this option 
+
