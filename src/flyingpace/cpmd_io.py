@@ -308,6 +308,7 @@ def write_cpmd_input(structure: Atoms, input_file_path: str, dft_dict: dict):
         'splinePoints' : '    SPLINE POINTS\n        {splinePoints}\n',
         'functional' :{
             'pbeSol' : '    GRADIENT CORRECTION PBESX PBESC\n',
+            'pbe' : '    GRADIENT CORRECTION PBEX PBEC\n',
         },
         'pwCutoff' : '    CUTOFF\n        {pwCutoff}\n',   
     }
