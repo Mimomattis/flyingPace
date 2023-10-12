@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #
-#SBATCH --job-name=runbatch-lammps
+#SBATCH --job-name=runbatch-exploration
 #SBATCH --output=%x.o%j
 #SBATCH --error=%x.e%j
 #SBATCH --time=23:59:00

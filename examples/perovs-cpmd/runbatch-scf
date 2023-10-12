@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #
-#SBATCH --job-name=runbatch-cpmd
+#SBATCH --job-name=runbatch-scf
 #SBATCH --output=%x.o%j
 #SBATCH --error=%x.e%j
 #SBATCH --time=120:00:00

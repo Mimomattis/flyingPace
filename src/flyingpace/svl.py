@@ -21,12 +21,16 @@ from flyingpace.input import DataReader
 
 log = logging.getLogger(__name__) 
 
-def run_explorative_md(cpu_connection: Connection, directory_dict: dict, InputData: DataReader):
+def run_explorative_md(InputData: DataReader):
 
     log.info(f"*** EXPLORATION RUN ***")
 
     exploration_dict = InputData.exploration_dict
     manager_dict = InputData.manager_dict
+
+    directory_dict = InputData.directory_dict
+
+    cpu_connection = InputData.cpu_connection
 
     #Read what is needed from exploration_dict
     assert isinstance(exploration_dict, dict)
@@ -39,14 +43,13 @@ def run_explorative_md(cpu_connection: Connection, directory_dict: dict, InputDa
         run_script_exploration = exploration_dict["explorationRunScript"]
         log.info(f"Run script for exploration run: {run_script_exploration}")
     else:
-        log.warning("No 'explorationRunScript' provided in YAML file, please specify it")
-        raise ValueError("No 'explorationRunScript' provided in YAML file, please specify it")
+        log.warning("No 'explorationRunScript' provided in input file, please specify it")
+        raise ValueError("No 'explorationRunScript' provided in input file, please specify it")
 
     #Read what is needed from directory_dict
     assert isinstance(directory_dict, dict)
     local_working_dir = directory_dict["local_working_dir"]
     local_exploration_dir = directory_dict["local_exploration_dir"]
-    prev_local_exploration_dir = flyingpace.dirmanager.get_prev_path(directory_dict["local_exploration_dir"])
     local_train_dir = directory_dict["local_train_dir"]
     if (cpu_connection != None):
         remote_exploration_dir = directory_dict["remote_exploration_dir"]
@@ -62,14 +65,14 @@ def run_explorative_md(cpu_connection: Connection, directory_dict: dict, InputDa
     if (flyingpace.fpio.calc_done_in_local_dir(local_exploration_dir)):
         log.warning(f"There already is a completed calculation in {local_exploration_dir}")
         if select:
-            run_pace_select(cpu_connection, directory_dict, InputData)
+            run_pace_select(InputData)
         return
     elif (flyingpace.fpio.calc_ongoing_in_local_dir(local_exploration_dir)):
         log.warning(f"There is an ongoing calculation in {local_exploration_dir}, is now waiting for it to finish")
         flyingpace.fpio.wait_for_calc_done(local_exploration_dir, cpu_connection)
         local(f"rm -rf {os.path.join(local_exploration_dir, 'CALC_ONGOING')}")
         if select:
-            run_pace_select(cpu_connection, directory_dict, InputData)
+            run_pace_select(InputData)
         return
 
     if (cpu_connection != None):
@@ -77,7 +80,7 @@ def run_explorative_md(cpu_connection: Connection, directory_dict: dict, InputDa
         if (flyingpace.fpio.calc_done_in_remote_dir(remote_exploration_dir, cpu_connection)):
             log.warning(f"There already is a completed calculation in {remote_exploration_dir}")
             if select:
-                run_pace_select(cpu_connection, directory_dict, InputData)
+                run_pace_select(InputData)
             log.warning(f"Copying results to {remote_exploration_dir}")
             flyingpace.sshutils.get_dir_as_archive(local_exploration_dir, remote_exploration_dir, cpu_connection)
             return
@@ -87,7 +90,7 @@ def run_explorative_md(cpu_connection: Connection, directory_dict: dict, InputDa
             flyingpace.fpio.wait_for_calc_done(remote_exploration_dir, cpu_connection)
             cpu_connection.run(f"rm -rf {os.path.join(remote_exploration_dir, 'CALC_ONGOING')}", hide='both')
             if select:
-                run_pace_select(cpu_connection, directory_dict, InputData)
+                run_pace_select(InputData)
             flyingpace.sshutils.get_dir_as_archive(local_exploration_dir, remote_exploration_dir, cpu_connection)
             return
     
@@ -111,7 +114,7 @@ def run_explorative_md(cpu_connection: Connection, directory_dict: dict, InputDa
     local(f"cp {datafile_path} {run_script_exploration_path} {potential_file_path} {active_set_file_path} {local_exploration_dir}")
 
     #Create input file and save it to local_train_dir
-    flyingpace.fpio.generate_lammps_input(directory_dict, InputData)
+    flyingpace.fpio.generate_lammps_input(InputData)
 
     #Copy local_exploration_dir to remote_exploration_dir
     if (cpu_connection != None):
@@ -134,7 +137,7 @@ def run_explorative_md(cpu_connection: Connection, directory_dict: dict, InputDa
     log.info("Exploration run has finished")
 
     if select:
-        run_pace_select(cpu_connection, directory_dict, InputData)
+        run_pace_select(InputData)
 
     #Copy results to local folder
     if (cpu_connection != None):
@@ -142,27 +145,34 @@ def run_explorative_md(cpu_connection: Connection, directory_dict: dict, InputDa
 
     return
 
-def run_pace_select(cpu_connection: Connection, directory_dict: dict, InputData: DataReader):
+def run_pace_select(InputData: DataReader):
+    '''
+    Run pace_activeset in remote_exploration_dir or remote_exploration_dir if cpu_connection is None
+    '''
 
     log.info(f"Selecting extrapolative structures via pace_select")
 
     exploration_dict = InputData.exploration_dict
     manager_dict = InputData.manager_dict
 
+    directory_dict = InputData.directory_dict
+
+    cpu_connection = InputData.cpu_connection
+
     #read what is needed from exploration_dict
     assert isinstance(exploration_dict, dict)
     if "select" in exploration_dict:
         select_num = exploration_dict["select"]
     else:
-        raise ValueError("Tried to run pace_select without 'select' being specified in the YAML file")
+        raise ValueError("Tried to run pace_select without 'select' being specified in the input file")
 
     #read what is needed from manager_dict
     assert isinstance(manager_dict, dict)
     if "CPUpaceDir" in manager_dict:
         pace_dir = manager_dict["CPUpaceDir"]
     else:
-        log.warning("No 'CPUpaceDir' provided in YAML file, please specify it")
-        raise ValueError("No 'CPUpaceDir' provided in YAML file, please specify it")
+        log.warning("No 'CPUpaceDir' provided in input file, please specify it")
+        raise ValueError("No 'CPUpaceDir' provided in input file, please specify it")
 
     #Read what is needed from directory_dict an construct paths
     assert isinstance(directory_dict, dict)

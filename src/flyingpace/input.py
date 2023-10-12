@@ -9,9 +9,14 @@ class DataReader:
         self.manager_dict = {}
         self.pacemaker_dict = {}
         self.dft_dict, self.exploration_dict, self.manager_dict, self.pacemaker_dict = self.read_input(self.input_file_name)
+        self.directory_dict = {}
+        self.cpu_connection = None
+        self.gpu_connection = None
 
     def read_input(self, input_file_name: str):
-        '''Reads the master input file and returns the sections in seperate directories'''
+        '''
+        Reads the master input file and returns the sections in seperate dictonaries
+        '''
 
         with open (input_file_name) as f:
             input_data = yaml.safe_load(f)
@@ -24,6 +29,9 @@ class DataReader:
         return dft_dict, exploration_dict, manager_dict, pacemaker_dict
 
     def change_data(self, dict: str, key: str, value: any):
+        '''
+        Change/add the value of a key/value pair in one of the dictonaries
+        '''
 
         if dict == 'dft_dict':
             self.dft_dict[key] = value
@@ -37,6 +45,10 @@ class DataReader:
         return dict
     
     def restore_input(self, dict: str, key: str):
+        '''
+        Restore an input parameter in one of the dictonaries 
+        from the input file by provinding its key 
+        '''
 
         with open (self.input_file_name) as f:
             input_data = yaml.safe_load(f)

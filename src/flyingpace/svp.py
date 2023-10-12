@@ -16,12 +16,18 @@ from flyingpace.input import DataReader
 
 log = logging.getLogger(__name__) 
 
-def run_pacemaker(gpu_connection: Connection, directory_dict: dict, InputData: DataReader, **kwargs):
+def run_pacemaker(InputData: DataReader, **kwargs):
+    '''
+    Start a pacemaker run on the given GPU cluster, given a run script
+    '''
 
     log.info(f"*** PACEMAKER RUN ***")
 
     pacemaker_dict = InputData.pacemaker_dict
-    manager_dict = InputData.manager_dict
+
+    directory_dict = InputData.directory_dict
+
+    gpu_connection = InputData.gpu_connection
 
     #Read what is needed from pacemaker_dict
     assert isinstance(pacemaker_dict, dict)
@@ -29,8 +35,8 @@ def run_pacemaker(gpu_connection: Connection, directory_dict: dict, InputData: D
         run_script_pacemaker = pacemaker_dict["pacemakerRunScript"]
         log.info(f"Run script for pacemaker run: {run_script_pacemaker}")
     else:
-        log.warning("No 'pacemakerRunScript' provided in YAML file, please specify it")
-        raise ValueError("No 'pacemakerRunScript' provided in YAML file, please specify it")
+        log.warning("No 'pacemakerRunScript' provided in input file, please specify it")
+        raise ValueError("No 'pacemakerRunScript' provided in input file, please specify it")
 
     #Read what is needed from directory_dict
     assert isinstance(directory_dict, dict)
@@ -44,7 +50,8 @@ def run_pacemaker(gpu_connection: Connection, directory_dict: dict, InputData: D
     dataset_file_path = os.path.join(local_dft_dir, dataset_file)
     run_script_pacemaker_path = os.path.join(local_working_dir, run_script_pacemaker)
 
-    #Read variables in case of a restart
+    #Read variables in case of a restart, old potential is then reused
+
     if "restart" in kwargs:
         restart = kwargs["restart"]
     else:
@@ -57,14 +64,14 @@ def run_pacemaker(gpu_connection: Connection, directory_dict: dict, InputData: D
 
     if (flyingpace.fpio.calc_done_in_local_dir(local_train_dir)):
         log.warning(f"There already is a completed calculation in {local_train_dir}")
-        run_activeset(gpu_connection, directory_dict, InputData)
+        run_activeset(InputData)
         return
         
     elif (flyingpace.fpio.calc_ongoing_in_local_dir(local_train_dir)):
         log.warning(f"There is an ongoing calculation in {local_train_dir}, is now waiting for it to finish")
         flyingpace.fpio.wait_for_calc_done(local_train_dir, gpu_connection)
         local(f"rm -rf {os.path.join(local_train_dir, 'CALC_ONGOING')}")
-        run_activeset(gpu_connection, directory_dict, InputData)
+        run_activeset(InputData)
         return
 
     if (gpu_connection != None):
@@ -72,7 +79,7 @@ def run_pacemaker(gpu_connection: Connection, directory_dict: dict, InputData: D
         if (flyingpace.fpio.calc_done_in_remote_dir(remote_train_dir, gpu_connection)):
             log.warning(f"There already is a completed calculation in {remote_train_dir}")
             log.warning(f"Copying results to {local_train_dir}")
-            run_activeset(gpu_connection, directory_dict, InputData)
+            run_activeset(InputData)
             flyingpace.sshutils.get_dir_as_archive(local_train_dir, remote_train_dir, gpu_connection)
             return
         
@@ -80,7 +87,7 @@ def run_pacemaker(gpu_connection: Connection, directory_dict: dict, InputData: D
             log.warning(f"There is an ongoing calculation in {remote_train_dir}, is now waiting for it to finish")
             flyingpace.fpio.wait_for_calc_done(remote_train_dir, gpu_connection)
             gpu_connection.run(f"rm -rf {os.path.join(remote_train_dir, 'CALC_ONGOING')}", hide='both')
-            run_activeset(gpu_connection, directory_dict, InputData)
+            run_activeset(InputData)
             flyingpace.sshutils.get_dir_as_archive(local_train_dir, remote_train_dir, gpu_connection)
             return
     
@@ -129,7 +136,7 @@ def run_pacemaker(gpu_connection: Connection, directory_dict: dict, InputData: D
     log.info("pacemaker run has finished")
 
     #Run pace_activeset
-    run_activeset(gpu_connection, directory_dict, InputData)
+    run_activeset(InputData)
 
     #Copy results to local folder
     if (gpu_connection != None):
@@ -137,17 +144,26 @@ def run_pacemaker(gpu_connection: Connection, directory_dict: dict, InputData: D
 
     return
 
-def run_activeset(gpu_connection: Connection, directory_dict: dict, InputData: DataReader):
+def run_activeset(InputData: DataReader):
+    '''
+    Run pace_activeset in remote_train_dir or local_train_dir if gpu_connection is None
+    '''
+
+    log.info(f"Run 'pace_activeset' on 'output_potential.yaml'")
 
     manager_dict = InputData.manager_dict
+
+    directory_dict = InputData.directory_dict
+
+    gpu_connection = InputData.gpu_connection
 
     #read what is needed from manager_dict
     assert isinstance(manager_dict, dict)
     if "GPUpaceDir" in manager_dict:
         pace_dir = manager_dict["GPUpaceDir"]
     else:
-        log.warning("No 'GPUpaceDir' provided in YAML file, please specify it")
-        raise ValueError("No 'GPUpaceDir' provided in YAML file, please specify it")
+        log.warning("No 'GPUpaceDir' provided in input file, please specify it")
+        raise ValueError("No 'GPUpaceDir' provided in input file, please specify it")
 
     #Read what is needed from directory_dict an construct paths
     assert isinstance(directory_dict, dict)

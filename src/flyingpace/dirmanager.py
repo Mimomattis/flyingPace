@@ -13,38 +13,42 @@ from flyingpace.input import DataReader
 
 log = logging.getLogger(__name__)
 
-def create_gen_directories(gen: int, cpu_connection: Connection, gpu_connection: Connection, InputData: DataReader):
+def create_gen_directories(gen: int, InputData: DataReader):
     '''
     Creates all local and remote working directories for learning gerneration 'gen'
     and returns the paths for all directories in a dict
     '''
     
     manager_dict = InputData.manager_dict
-    directory_dict = {}
+
+    directory_dict = InputData.directory_dict
+
+    cpu_connection = InputData.cpu_connection
+    gpu_connection = InputData.gpu_connection
 
     #Read what is needed from manager_dict
     if "localWorkingDir" in manager_dict:
         directory_dict["local_working_dir"] = manager_dict["localWorkingDir"]
         log.info(f"Local working directory: {directory_dict['local_working_dir']}")
     else:
-        log.warning("No 'localWorkingDir' provided in YAML file, please specify it")
-        raise ValueError("No 'localWorkingDir' provided in YAML file, please specify it")
+        log.warning("No 'localWorkingDir' provided in input file, please specify it")
+        raise ValueError("No 'localWorkingDir' provided in input file, please specify it")
     
     if (cpu_connection != None):
         if "CPUWorkingDir" in manager_dict:
             directory_dict["cpu_working_dir"] = manager_dict["CPUWorkingDir"]
             log.info(f"CPU working directory: {directory_dict['cpu_working_dir']}")
         else:
-            log.warning("No 'CPUWorkingDir' provided in YAML file, please specify it")
-            raise ValueError("No 'CPUWorkingDir' provided in YAML file, please specify it")
+            log.warning("No 'CPUWorkingDir' provided in input file, please specify it")
+            raise ValueError("No 'CPUWorkingDir' provided in input file, please specify it")
         
     if (gpu_connection != None):
         if "GPUWorkingDir" in manager_dict:
             directory_dict["gpu_working_dir"] = manager_dict["GPUWorkingDir"]
             log.info(f"GPU working directory: {directory_dict['gpu_working_dir']}")
         else:
-            log.warning("No 'GPUWorkingDir' provided in YAML file, please specify it")
-            raise ValueError("No 'GPUWorkingDir' provided in YAML file, please specify it")
+            log.warning("No 'GPUWorkingDir' provided in input file, please specify it")
+            raise ValueError("No 'GPUWorkingDir' provided in input file, please specify it")
     
     #Create loacal generation directory by combining the local working directory with the generation number
     directory_dict["local_gen_dir"] = os.path.join(directory_dict["local_working_dir"], f"gen{str(gen)}")

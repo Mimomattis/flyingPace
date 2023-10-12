@@ -34,69 +34,73 @@ def main(args):
     Connection.run = flyingpace.logginghelper.log_output_and_errors(Connection.run, log)
 
     #Read what is needed from manager_dict
-    log.info(f"Start reading file: {input_filename}")
-
+    log.info(f"Start reading flyingPace input file: {input_filename}")
+    log.info(f"General information:")
     assert isinstance(manager_dict, dict)
     if "startGen" in manager_dict:
         gen = manager_dict["startGen"]
         log.info(f"Start from learning generation: {str(gen)}")
     else:
-        log.warning("No 'startGen' provided in YAML file, the default is 0")
+        log.warning("No 'startGen' provided in input file, the default is 0")
         gen = 0 
 
     if "finalGen" in manager_dict:
         final_gen = manager_dict["finalGen"]
         log.info(f"Final learning generation will be: {str(final_gen)}")
     else:
-        log.warning("No 'finalGen' provided in YAML file, the default is 5")
-        gen = 5 
+        log.warning("No 'finalGen' provided in input file, the default is 10")
+        gen = 10 
         log.info(f"Final learning generation will be: {str(final_gen)}")
 
     if "systemName" in manager_dict:
         system_name = manager_dict["systemName"]
-        log.info(f"systemName: {system_name}")
+        log.info(f"System name: {system_name}")
     else:
-        log.warning("No 'systemName' provided in YAML file, please specify it")
-        raise ValueError("No 'systemName' provided in YAML file, please specify it")
+        log.warning("No 'systemName' provided in input file, please specify it")
+        raise ValueError("No 'systemName' provided in input file, please specify it")
 
     if "startFile" in manager_dict:
         start_file = manager_dict["startFile"]
-        log.info(f"Start file: {start_file}")
+        log.info(f"The flyingPace run is started from file: {start_file}")
     else:
-        log.warning("No 'startFile' provided in YAML file, please specify it")
-        raise ValueError("No 'startFile' provided in YAML file, please specify it")
+        log.warning("No 'startFile' provided in input file, please specify it")
+        raise ValueError("No 'startFile' provided in input file, please specify it")
     
     #TODO:Is there a better way to do this, maybe activate the cond env on the clusters
     if "CPUPython" in manager_dict:
         cpu_python_interpreter = manager_dict["CPUPython"]
         log.info(f"CPU python interpreter: {cpu_python_interpreter}")
     else:
-        log.warning("No 'CPUPython' provided in YAML file, please specify it")
-        raise ValueError("No 'CPUPython' provided in YAML file, please specify it")
+        log.warning("No 'CPUPython' provided in input file, please specify it")
+        raise ValueError("No 'CPUPython' provided in input file, please specify it")
     
     if "GPUPython" in manager_dict:
         gpu_python_interpreter = manager_dict["GPUPython"]
         log.info(f"GPU python interpreter: {gpu_python_interpreter}")
     else:
-        log.warning("No 'GPUPython' provided in YAML file, please specify it")
-        raise ValueError("No 'GPUPython' provided in YAML file, please specify it")
+        log.warning("No 'GPUPython' provided in input file, please specify it")
+        raise ValueError("No 'GPUPython' provided in input file, please specify it")
 
     #Establish the ssh connections based on the input parameters
     cpu_connection, gpu_connection = flyingpace.sshutils.initialize_connections(InputData)
+    InputData.cpu_connection = cpu_connection
+    InputData.gpu_connection = gpu_connection
 
     #Create all initial working directories on the local and remote clusters
-    directory_dict = flyingpace.dirmanager.create_gen_directories(0, cpu_connection, gpu_connection, InputData)
+    directory_dict = flyingpace.dirmanager.create_gen_directories(0, InputData)
+    InputData.directory_dict = directory_dict
 
     #Read the start file type and write all needed files to start
     start_file_type = flyingpace.fpio.check_start_file_type(start_file)  
     InputData.change_data("manager_dict", "startFileType", start_file_type)
     if (start_file_type == "dft_input_file"):
         InputData.change_data("manager_dict", "startInputFilePath", os.path.join(directory_dict["local_working_dir"], start_file))
-        flyingpace.fpio.datafile_from_dft_input(directory_dict, InputData)
+        flyingpace.fpio.datafile_from_dft_input(InputData)
         InputData.change_data("manager_dict", "dataFilePath", os.path.join(directory_dict["local_working_dir"], f"{system_name}.data"))
+
     elif (start_file_type == "lammps_datafile"):
         InputData.change_data("manager_dict", "dataFilePath", os.path.join(directory_dict["local_working_dir"], start_file))
-        flyingpace.fpio.write_aimd_input_file(directory_dict, InputData)
+        flyingpace.fpio.write_aimd_input_file(InputData)
         InputData.change_data("manager_dict", "startInputFilePath", os.path.join(directory_dict["local_working_dir"], f"INP0"))
 
     #Add element list from the datafile to manager_dict
@@ -111,11 +115,12 @@ def main(args):
 
         #Decide what to do based on start file type
         if (start_file_type == "dft_input_file" or start_file_type == "lammps_datafile"):
-            flyingpace.svd.run_aimd(cpu_connection, directory_dict, InputData)
-            flyingpace.fpio.aimd_to_pickle(directory_dict, InputData)
-            flyingpace.svp.run_pacemaker(gpu_connection, directory_dict, InputData)
-            flyingpace.svl.run_explorative_md(cpu_connection, directory_dict, InputData)
-            flyingpace.fpio.extrapolative_to_pickle(directory_dict, InputData)
+            flyingpace.svd.run_aimd(InputData)
+            flyingpace.fpio.aimd_to_pickle(InputData)
+            flyingpace.svp.run_pacemaker(InputData)
+            flyingpace.fpio.update_datafile('last', InputData)
+            flyingpace.svl.run_explorative_md(InputData)
+            flyingpace.fpio.extrapolative_dump_to_pickle(InputData)
         else:
             log.warning(f"This start Mode is not implemented!")
             raise ValueError(f"This start Mode is not implemented!")
@@ -129,14 +134,15 @@ def main(args):
         log.info(f"******************************")
 
         #Create all working directories on the local and remote clusters for the current generation
-        directory_dict = flyingpace.dirmanager.create_gen_directories(gen, cpu_connection, gpu_connection, InputData)
+        directory_dict = flyingpace.dirmanager.create_gen_directories(gen, InputData)
+        InputData.directory_dict = directory_dict
 
-        flyingpace.svd.run_scf_from_exploration(cpu_connection, directory_dict, InputData)
-        flyingpace.fpio.scfs_to_pickle(directory_dict, InputData)
-        flyingpace.fpio.merge_pickle(directory_dict)
-        flyingpace.svp.run_pacemaker(gpu_connection, directory_dict, InputData, restart=True)
-        flyingpace.svl.run_explorative_md(cpu_connection, directory_dict, InputData)
-        flyingpace.fpio.extrapolative_to_pickle(directory_dict, InputData)
+        flyingpace.svd.run_scf_from_exploration(InputData)
+        flyingpace.fpio.scfs_to_pickle(InputData)
+        flyingpace.fpio.merge_pickle(InputData)
+        flyingpace.svp.run_pacemaker(InputData, restart=True)
+        flyingpace.svl.run_explorative_md(InputData)
+        flyingpace.fpio.extrapolative_dump_to_pickle(InputData)
 
         gen += 1
 

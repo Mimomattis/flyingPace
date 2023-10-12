@@ -37,28 +37,46 @@ Possible input parameters:
 - Defines the learning generation from which learning is started. If 'gen{n}' is already existent in the  
 local working directory, learning can be started from 'gen{n+1}'
 
-'  finalGen : 10' (required, default: 10)  
+`  finalGen : 10` (required, default: 10)  
 
 - Defines the final learning generation
 
-'  systemName: str' (required)
+`  systemName: str` (required)
 
 - Short descriptive name for the system
 
-'  CPUHost: str, None' (required)
+`  CPUHost: str, 'local'` (required)
 
 - `str` Hostname of the machine, on which the cpu calculations are done (DFT and LAMMPS calculations).  
-Assumes that there is a functioning installation of LAMMPS and the used DFT code on the cpu machine,  
-there are workingslurm scripts 'explorationRunScript' for LAMMPS and 'aimdRunScript' and 'scfRunScript' 
+Assumes that there is a functioning installation of LAMMPS and the used DFT code on the cpu machine and that  
+there are working slurm scripts 'explorationRunScript' for LAMMPS and 'aimdRunScript' and 'scfRunScript' 
 for the DFT code. Assumes also a working authentification on the cpu machine with ssh-key
 
-- `None` The cpu calculations are done (DFT and LAMMPS calculations) are done locally
+- `'local'` The cpu calculations (DFT and LAMMPS calculations) are done locally
 
-'  CPUUser: str' (required)
+`  CPUUser: str` (required if `CPUHost` not `'local'`)
 
 - Username for the cpu machine 
 
-'  CPUJumpHost' (optional)
+`  CPUJumpHost` (optional)
 
 - If the connection to the cpu machine is only opssible via a jump server, provide the hostname with this option 
+
+
+`  GPUHost: str, 'local'` (required)
+
+- `str` Hostname of the machine, on which the gpu calculations are done (pacemaker runs).  
+Assumes that there is a functioning installation of pacemaker on the gpu machine and that
+there is a working slurm script 'pacemakerRunScript'. Assumes also a working authentification on the gpu machine with ssh-key
+
+- `'local'` The gpu calculations (pacemaker runs) are done locally
+
+`  GPUUser: str` (required if `GPUHost` not `'local'`)
+
+- Username for the gpu machine 
+
+`  GPUJumpHost` (optional)
+
+- If the connection to the gpu machine is only opssible via a jump server, provide the hostname with this option 
+
 

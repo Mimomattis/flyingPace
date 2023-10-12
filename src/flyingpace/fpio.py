@@ -168,42 +168,42 @@ def generate_pace_input(dataset_file_path: str, directory_dict: dict, InputData:
         test_size = pacemaker_dict["testSize"]
         log.info(f"Testsize for pacemaker run: {test_size}")
     else:
-        log.warning("No 'testSize' provided in YAML file, the default is 0")
+        log.warning("No 'testSize' provided in input file, the default is 0")
         test_size = 0
 
     if "numberOfFunctions" in pacemaker_dict:
         num_functions = pacemaker_dict["numberOfFunctions"]
         log.info(f"Number of functions for pacemaker run: {num_functions}")
     else:
-        log.warning("No 'numberOfFunctions' provided in YAML file, the default is 700")
+        log.warning("No 'numberOfFunctions' provided in input file, the default is 700")
         num_functions = 700
 
     if "cutoff" in pacemaker_dict:
         cutoff = pacemaker_dict["cutoff"]
         log.info(f"Cutoff for pacemaker run: {cutoff}")
     else:
-        log.warning("No 'cutoff' provided in YAML file, the default is 7.0")
+        log.warning("No 'cutoff' provided in input file, the default is 7.0")
         cutoff = 7.0
 
     if "weighting" in pacemaker_dict:
         weighting_inp = pacemaker_dict["weighting"]
         log.info(f"Weighting for pacemaker run: {weighting_inp}")
     else:
-        log.warning("No 'weighting' provided in YAML file, the default is 'uniform'")
+        log.warning("No 'weighting' provided in input file, the default is 'uniform'")
         weighting_inp = 'uniform'
 
     if "kappa" in pacemaker_dict:
         kappa = pacemaker_dict["kappa"]
         log.info(f"Kappa for pacemaker run: {kappa}")
     else:
-        log.warning("No 'kappa' provided in YAML file, the default is 0.3")
+        log.warning("No 'kappa' provided in input file, the default is 0.3")
         weighting = 0.3
     
     if "maxNumIterations" in pacemaker_dict:
         max_num_iter = pacemaker_dict["maxNumIterations"]
         log.info(f"Maximum number of iterations for pacemaker run: {max_num_iter}")
     else:
-        log.warning("No 'maxNumIterations' provided in YAML file, the default is 500")
+        log.warning("No 'maxNumIterations' provided in input file, the default is 500")
         max_num_iter = 500
 
     #Get relevant directories from directory_dict
@@ -275,7 +275,7 @@ def generate_pace_input(dataset_file_path: str, directory_dict: dict, InputData:
 ##                                                                                     ##
 #########################################################################################
 
-def generate_lammps_input(directory_dict: dict, InputData: DataReader):
+def generate_lammps_input(InputData: DataReader):
     '''
     Generate a inputfile for lammps based on data from the master input file
     and save it in the current generation local_exploration_dir
@@ -284,13 +284,15 @@ def generate_lammps_input(directory_dict: dict, InputData: DataReader):
     exploration_dict = InputData.exploration_dict
     manager_dict = InputData.manager_dict
 
+    directory_dict = InputData.directory_dict
+
     #Read what is needed from pacemaker_dict
     assert isinstance(exploration_dict, dict)
     if "explorationParams" in exploration_dict:
         input_data_dict = exploration_dict["explorationParams"]
     else:
-        log.warning("No 'explorationParams' provided in YAML file, please provide it")
-        raise ValueError("No 'explorationParams' provided in YAML file, please provide it")
+        log.warning("No 'explorationParams' provided in input file, please provide it")
+        raise ValueError("No 'explorationParams' provided in input file, please provide it")
 
     #Read what is needed from directory_dict
     assert isinstance(directory_dict, dict)
@@ -331,7 +333,7 @@ fix 6 all nvt temp {startTemp} {endTemp} $(100.0*dt)\n\
 run {steps}',
         
         'NPT' : '\nvelocity all create {startTemp} 67 dist gaussian\n\
-fix 6 all npt temp {startTemp} {endTemp} $(100.0*dt) iso 1.0 1.0 $(1000.0*dt)\n\
+fix 6 all npt temp {startTemp} {endTemp} $(100.0*dt) iso {startPress} {startPress} $(1000.0*dt)\n\
 run {steps}',
     },           
 }
@@ -427,6 +429,16 @@ run {steps}',
         input_data_dict["temp"] = 400.0
         input_data_dict["startTemp"] = input_data_dict["temp"]
         input_data_dict["endTemp"] = input_data_dict["temp"]
+
+    #Pressure for NPT run
+    if (input_data_dict["runType"] == "NPT"):
+        if "press" in input_data_dict:
+            input_data_dict["startPress"] = input_data_dict["press"]
+            input_data_dict["endPress"] = input_data_dict["press"]
+        elif "pressRamp" in input_data_dict:
+            input_data_dict["startPress"] = input_data_dict["tempPress"].split()[0]
+            input_data_dict["endPress"] = input_data_dict["tempPress"].split()[1]
+        
 
     #Type of run
     input += "\n#Start run"
@@ -531,13 +543,16 @@ def check_dft_job_type(dft_input_file_path: str, dft_code: str):
     
         return
 
-def write_aimd_input_file(directory_dict: dict, InputData: DataReader):
+def write_aimd_input_file(InputData: DataReader):
     '''
-    Writes a AIMD input file from the current DataFile an writes it to local_working_dir as 'INP0'
+    Writes a AIMD input file from the current DataFile and
+    writes it to local_working_dir as 'INP0'
     '''
 
     dft_dict = InputData.dft_dict
     manager_dict = InputData.manager_dict
+
+    directory_dict = InputData.directory_dict
 
     #Read what is needed from dft_dict
     assert isinstance(dft_dict, dict)
@@ -569,12 +584,20 @@ def write_aimd_input_file(directory_dict: dict, InputData: DataReader):
     scf_input_file_path = os.path.join(local_working_dir, "INP0")
     write_input_map[dft_code](structure, scf_input_file_path, dft_dict)
 
+    log.info(f"Read {os.path.basename(datafile_path)} and write DFT input file 'INP0'")
+
     return
 
-def datafile_from_dft_input(directory_dict: str, InputData: DataReader):
+def datafile_from_dft_input(InputData: DataReader):
+    '''
+    Reads the 'startFile' (assumes it is a DFT input file) and writes
+    a lammps datafile to local_working_dir named after 'systemName'
+    '''
 
-    manager_dict = InputData.manager_dict
     dft_dict = InputData.dft_dict
+    manager_dict = InputData.manager_dict
+
+    directory_dict = InputData.directory_dict
 
     assert isinstance(dft_dict, dict)
     if "dftCode" in dft_dict:
@@ -586,8 +609,8 @@ def datafile_from_dft_input(directory_dict: str, InputData: DataReader):
             log.warning("The chosen DFT code is not implemented")
             raise NotImplementedError("The chosen DFT code is not implemented")
     else:
-        log.warning("No 'dftCode' provided in YAML file, please specify it")
-        raise ValueError("No 'dftCode' provided in YAML file, please specify it")
+        log.warning("No 'dftCode' provided in input file, please specify it")
+        raise ValueError("No 'dftCode' provided in input file, please specify it")
         
     assert isinstance(manager_dict, dict)
     start_file = manager_dict["startFile"]
@@ -604,6 +627,8 @@ def datafile_from_dft_input(directory_dict: str, InputData: DataReader):
 
     ase.io.write(datafile_path, images=structure, format='lammps-data', masses=True)
 
+    log.info(f"Read DFT input file and write lammps datafile '{system_name}.data'")
+
     return
 
 
@@ -613,7 +638,7 @@ def datafile_from_dft_input(directory_dict: str, InputData: DataReader):
 ##                                                                                     ##
 #########################################################################################
 
-def merge_pickle(directory_dict: dict):
+def merge_pickle(InputData: DataReader):
     '''
     Merges the pickle file 'dft_data.pckl.gzip' from prev_local_dft_dir
     with 'new_dft_data.pckl.gzip' from local_dft_dir and saves the resulting 
@@ -621,6 +646,8 @@ def merge_pickle(directory_dict: dict):
     'dft_data.pckl.gzip' in prev_local_dft_dir must contain a column containing
     the reference energy
     '''
+
+    directory_dict = InputData.directory_dict
 
     #Get relevant directories from directory_dict
     assert isinstance(directory_dict, dict)
@@ -643,51 +670,60 @@ def merge_pickle(directory_dict: dict):
     combined_data = pd.concat([old_data,new_data], ignore_index=True)
 
     combined_data.to_pickle(pickle_file_path, compression='gzip', protocol=4)
-    log.info(f"Saved new combined pickle file as'{pickle_file_path}'")
+    log.info(f"Merging pickle files {new_pickle_file_path} and {prev_pickle_file_path} to {pickle_file_path}")
 
     return
 
-def datafile_from_pickle(pickle_file: str, pickle_dir: str, mode:str):
+def update_datafile(mode:str, InputData: DataReader):
     '''
-    Reads the pickle file 'pickle_file' from 'pickle_dir', 
+    Reads the pickle file 'dft_data.pckl.gzip' from local_train_dir, 
     chooses a random structure and saves it as a lammps data file
-    called 'random_struc.data' in 'pickle_dir', returns the file path
+    in local_train_dir and updates its path to manager_dict["dataFilePath"]
     '''
-    pickle_path = os.path.join(pickle_dir, pickle_file)
 
-    if (os.path.exists(pickle_path)):
+    directory_dict = InputData.directory_dict
+    local_train_dir = directory_dict["local_train_dir"]
+    pickle_file_path = os.path.join(local_train_dir, "dft_data.pckl.gzip")
+
+    if (os.path.exists(pickle_file_path)):
         pass
     else:
-        log.warning(f"The pickle file {pickle_path} does not exist!")
-        raise RuntimeError(f"The pickle file {pickle_path} does not exist!")
+        log.warning(f"The pickle file {pickle_file_path} does not exist!")
+        raise RuntimeError(f"The pickle file {pickle_file_path} does not exist!")
     
-    df = pd.read_pickle(pickle_path, compression="gzip")
+    df = pd.read_pickle(pickle_file_path, compression="gzip")
 
-    if (mode == 'random'):
-        struc_path = os.path.join(pickle_dir, 'random_structure.data')
+    if (mode == "random"):
+        datafile_path = os.path.join(local_train_dir, "random_structure.data")
         num_structures = df.shape[0]
         structure_id = random.randint(0,num_structures-1)
-        structure = df.loc[structure_id,'ase_atoms']
+        structure = df.loc[structure_id,"ase_atoms"]
 
-    if (mode == 'last'):
-        struc_path = os.path.join(pickle_dir, 'last_structure.data')
+    if (mode == "last"):
+        datafile_path = os.path.join(local_train_dir, "last_structure.data")
         num_structures = df.shape[0]
-        structure = df.loc[num_structures-1,'ase_atoms']
+        structure = df.loc[num_structures-1,"ase_atoms"]
 
-    ase.io.write(struc_path, images=structure, format='lammps-data', masses=True)
+    ase.io.write(datafile_path, images=structure, format="lammps-data", masses=True)
 
-    return struc_path
+    InputData.change_data("manager_dict", "dataFilePath", datafile_path)
 
-def extrapolative_to_pickle(directory_dict: dict, InputData: DataReader):
+    log.info(f"Updated datafile to {datafile_path}")
+
+    return
+
+def extrapolative_dump_to_pickle(InputData: DataReader):
     '''
     Read a lammps dump file called "extrapolative_structures.dump" from this 
     generations local_exploration_dir and saves the structures in a pickle file
     in local_exploration_dir
     '''
 
-    log.info(f"Gathering extrapolative structures in a pickle file")
+    log.info(f"Gathering extrapolative structures in 'extrapolative_structures.pckl.gzip'")
 
     manager_dict = InputData.manager_dict
+
+    directory_dict = InputData.directory_dict
 
     #Read elementlist from manager_dict
     element_list = manager_dict["elementList"]
@@ -730,13 +766,15 @@ def extrapolative_to_pickle(directory_dict: dict, InputData: DataReader):
 
     return
 
-def prepare_scf_calcs_from_pickle(directory_dict: dict, InputData: DataReader):
+def prepare_scf_calcs_from_pickle(InputData: DataReader):
     '''
     Reads 'extrapolative_structures.pckl.gzip' from prev_local_exploration_dir
     and constructs CPMD scf input files from them in local_dft_dir, one folder for each calculation
     '''
 
     dft_dict = InputData.dft_dict
+
+    directory_dict = InputData.directory_dict
 
     #Read what is needed from dft_dict
     assert isinstance(dft_dict, dict)
@@ -751,7 +789,7 @@ def prepare_scf_calcs_from_pickle(directory_dict: dict, InputData: DataReader):
     if "maxScfRuns" in dft_dict:
         max_scf_runs = dft_dict["maxScfRuns"]
     else:
-        log.warning("No 'maxScfRuns' provided in YAML file, the default is 100")
+        log.warning("No 'maxScfRuns' provided in input file, the default is 100")
         max_scf_runs = 100
 
     #Overwrite value to ensure scf calculations
@@ -772,6 +810,8 @@ def prepare_scf_calcs_from_pickle(directory_dict: dict, InputData: DataReader):
 
     structures = data.loc[:,'ase_atoms']
 
+    log.info(f"Prepare scf calculations in {local_dft_dir}")
+
     scf_dir_num = 1
     for i in structures:
 
@@ -786,15 +826,17 @@ def prepare_scf_calcs_from_pickle(directory_dict: dict, InputData: DataReader):
 
     return
 
-def scfs_to_pickle(directory_dict: dict, InputData: DataReader):
+def scfs_to_pickle(InputData: DataReader):
     '''
     Reads a number of SCF output files in the directory output_file_dir positioned in 
-    local_dft_dir. The filenames follow the fromat of {file_pattern}.* with * being a 
+    local_dft_dir. The filenames follow the format of OUT.* with * being a 
     consecutive numbering. Saves the data as 'new_dft_data.pckl.gzip' in local_dft_dir
     without the corrected_energy column
     '''
 
     dft_dict = InputData.dft_dict
+
+    directory_dict = InputData.directory_dict
 
     #Read what is needed from dft_dict
     assert isinstance(dft_dict, dict)
@@ -806,8 +848,8 @@ def scfs_to_pickle(directory_dict: dict, InputData: DataReader):
             log.warning("The chosen DFT code is not implemented")
             raise NotImplementedError("The chosen DFT code is not implemented")
     else:
-        log.warning("No 'dftCode' provided in YAML file, please specify it")
-        raise ValueError("No 'dftCode' provided in YAML file, please specify it")
+        log.warning("No 'dftCode' provided in input file, please specify it")
+        raise ValueError("No 'dftCode' provided in input file, please specify it")
 
     assert isinstance(directory_dict, dict)
     local_dft_dir = directory_dict["local_dft_dir"]
@@ -842,20 +884,25 @@ def scfs_to_pickle(directory_dict: dict, InputData: DataReader):
     if (df.shape[0] == 0):
         log.warning(f"No extrapolative structure SCF calculation has converged!")
         raise RuntimeError(f"No extrapolative structure SCF calculation has converged!")
+    
+    log.info(f"Gathering results of scf calculations in {pickle_file_path}")
 
     df.to_pickle(pickle_file_path, compression='gzip', protocol=4)
     log.info(f"Saved '{pickle_file_path}'")
 
-def aimd_to_pickle(directory_dict: dict, InputData: DataReader):
+def aimd_to_pickle(InputData: DataReader):
     '''
-    Reads output data from a AIMD run in the dft folder of the current generation 
-    and saves it in 'dft_data.pckl.gzip', which can be processed by pacemaker
-    It chooses the right parsing function with the dft_code keyword
+    Reads output data from a AIMD run in local_dft_dir 
+    and saves it in local_dft_dir as 'dft_data.pckl.gzip'
     '''
+
+    log.info(f"Gathering data from AIMD run")
 
     dft_dict = InputData.dft_dict
     manager_dict = InputData.manager_dict
     pacemaker_dict = InputData.pacemaker_dict
+
+    directory_dict = InputData.directory_dict
 
     #Get relevant directories from directory_dict
     assert isinstance(directory_dict, dict)
@@ -878,8 +925,8 @@ def aimd_to_pickle(directory_dict: dict, InputData: DataReader):
             log.warning("The chosen DFT code is not implemented")
             raise NotImplementedError("The chosen DFT code is not implemented")
     else:
-        log.warning("No 'dftCode' provided in YAML file, please specify it")
-        raise ValueError("No 'dftCode' provided in YAML file, please specify it")
+        log.warning("No 'dftCode' provided in input file, please specify it")
+        raise ValueError("No 'dftCode' provided in input file, please specify it")
     
     #Read what is needed from pacemaker_dict
     assert isinstance(pacemaker_dict, dict)
@@ -887,7 +934,7 @@ def aimd_to_pickle(directory_dict: dict, InputData: DataReader):
         reference_energy_mode = pacemaker_dict["referenceEnergyMode"]
         log.info(f"Reference energy mode: {reference_energy_mode}")
     else:
-        log.warning("No 'referenceEnergyMode' provided in YAML file, the default is auto")
+        log.warning("No 'referenceEnergyMode' provided in input file, the default is auto")
         reference_energy_mode = 'auto'
 
     if (reference_energy_mode == 'auto'):
@@ -897,8 +944,8 @@ def aimd_to_pickle(directory_dict: dict, InputData: DataReader):
             reference_energy = pacemaker_dict["referenceEnergies"]
             log.info(f"Reference energies given as atomic energies")
         else:
-            log.warning("No 'referenceEnergies' provided in YAML file, please specify it")
-            raise ValueError("No 'referenceEnergies' provided in YAML file, please specify it")
+            log.warning("No 'referenceEnergies' provided in input file, please specify it")
+            raise ValueError("No 'referenceEnergies' provided in input file, please specify it")
 
     #Construct absolute paths for files  
     aimd_input_file_path = manager_dict["startInputFilePath"]

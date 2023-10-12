@@ -28,8 +28,8 @@ def initialize_connections(InputData: DataReader):
         else:
             log.info(f"CPU host: {cpu_host}")
     else:
-        log.warning("No 'CPUHost' provided in YAML file, please specify it")
-        raise ValueError("No 'CPUHost' provided in YAML file, please specify it")
+        log.warning("No 'CPUHost' provided in input file, please specify it")
+        raise ValueError("No 'CPUHost' provided in input file, please specify it")
     
     if "GPUHost" in manager_dict:
         gpu_host = manager_dict["GPUHost"]
@@ -38,22 +38,21 @@ def initialize_connections(InputData: DataReader):
         else:
             log.info(f"GPU host: {gpu_host}")
     else:
-        log.warning("No 'GPUHost' provided in YAML file, please specify it")
-        raise ValueError("No 'GPUHost' provided in YAML file, please specify it")
+        log.warning("No 'GPUHost' provided in input file, please specify it")
+        raise ValueError("No 'GPUHost' provided in input file, please specify it")
     
     if (cpu_host != "local"):
         if "CPUUser" in manager_dict:
             cpu_user = manager_dict["CPUUser"]
             log.info(f"CPU user: {cpu_user}")
         else:
-            log.warning("No 'CPUUser' provided in YAML file, please specify it")
-            raise ValueError("No 'CPUUser' provided in YAML file, please specify it")
+            log.warning("No 'CPUUser' provided in input file, please specify it")
+            raise ValueError("No 'CPUUser' provided in input file, please specify it")
         
         if "CPUJumpHost" in manager_dict:
             cpu_jump_host = manager_dict["CPUJumpHost"]
             log.info(f"CPU Jump host: {cpu_jump_host}")
         else:
-            log.warning("No 'CPUJumpHost' provided in YAML file, assuming direct connection")
             cpu_jump_host = None
             
     if (gpu_host != "local"):
@@ -61,13 +60,12 @@ def initialize_connections(InputData: DataReader):
             gpu_user = manager_dict["GPUUser"]
             log.info(f"GPU user: {gpu_user}")
         else:
-            log.warning("No 'GPUUser' provided in YAML file, please specify it")
-            raise ValueError("No 'GPUUser' provided in YAML file, please specify it")
+            log.warning("No 'GPUUser' provided in input file, please specify it")
+            raise ValueError("No 'GPUUser' provided in input file, please specify it")
         if "GPUJumpHost" in manager_dict:
             gpu_jump_host = manager_dict["GPUJumpHost"]
             log.info(f"GPU Jump host: {gpu_jump_host}")
         else:
-            log.warning("No 'GPUJumpHost' provided in YAML file, assuming direct connection")
             gpu_jump_host = None
 
     #Setup for the ssh connection
@@ -106,7 +104,7 @@ def initialize_connections(InputData: DataReader):
             cpu_connection.run("echo 'CPU connection is working'", hide='both')
         except Exception as ex:
             template = "An exception of type {0} occurred. Arguments:\n{1!r}\n \
-            CPU connection could not be opend, check given details in YAML file"
+            CPU connection could not be opend, check given details in input file"
             message = template.format(type(ex).__name__, ex.args)
             log.info(message)
     if (gpu_connection != None):       
@@ -114,7 +112,7 @@ def initialize_connections(InputData: DataReader):
             gpu_connection.run("echo 'GPU connection is working'", hide='both')
         except Exception as ex:
             template = "An exception of type {0} occurred. Arguments:\n{1!r}\n \
-            GPU connection could not be opend, check given details in YAML file"
+            GPU connection could not be opend, check given details in input file"
             message = template.format(type(ex).__name__, ex.args)
             log.info(message)
     
@@ -199,7 +197,7 @@ def get_dir_as_archive(local_dir: str, remote_dir: str, connection: Connection):
 
 def gather_files(dir: str, gather_dir: str, dir_pattern: str, file_list: list, remote_connection: Connection):
     '''
-    Collects files with the names given in file_list from subfolders in remote_dir with 
+    Collects files with the names given in file_list from subfolders in dir with 
     the name pattern dir_pattern into the directory gather_dir via remote_connection 
     
     Permitted form of dir_pattern: 
@@ -208,6 +206,8 @@ def gather_files(dir: str, gather_dir: str, dir_pattern: str, file_list: list, r
     '''
     #Prepare absolut paths
     folder_pattern = os.path.join(dir, dir_pattern + ".*")
+
+    log.info(f"Gather the files {file_list} from the folders {dir_pattern}.* into {gather_dir}")
 
     if (remote_connection != None):
         if exists(remote_connection, gather_dir):

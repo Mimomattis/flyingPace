@@ -282,8 +282,8 @@ def write_cpmd_input(structure: Atoms, input_file_path: str, dft_dict: dict):
     if "dftParams" in dft_dict:
         input_data_dict = dft_dict["dftParams"]
     else:
-        log.warning("No 'dftParams' provided in YAML file, please provide it")
-        raise ValueError("No 'dftParams' provided in YAML file, please provide it")
+        log.warning("No 'dftParams' provided in input file, please provide it")
+        raise ValueError("No 'dftParams' provided in input file, please provide it")
 
     input_options = {
         'calculation' : {

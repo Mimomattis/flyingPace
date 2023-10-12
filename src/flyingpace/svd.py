@@ -15,13 +15,17 @@ from flyingpace.input import DataReader
 
 log = logging.getLogger(__name__)
 
-def run_aimd(cpu_connection: Connection, directory_dict: dict, InputData: DataReader):
+def run_aimd(InputData: DataReader):
     '''Start a AIMD run on the given CPU cluster, given a run script and a input file'''
 
     log.info(f"*** DFT RUN ***")
 
     dft_dict = InputData.dft_dict
     manager_dict = InputData.manager_dict
+
+    directory_dict = InputData.directory_dict
+
+    cpu_connection = InputData.cpu_connection
 
     #Read what is needed from dft_dict
     assert isinstance(dft_dict, dict)
@@ -34,15 +38,15 @@ def run_aimd(cpu_connection: Connection, directory_dict: dict, InputData: DataRe
             log.warning("The chosen DFT code is not implemented")
             raise NotImplementedError("The chosen DFT code is not implemented")
     else:
-        log.warning("No 'dftCode' provided in YAML file, please specify it")
-        raise ValueError("No 'dftCode' provided in YAML file, please specify it")
+        log.warning("No 'dftCode' provided in input file, please specify it")
+        raise ValueError("No 'dftCode' provided in input file, please specify it")
 
     if "aimdRunScript" in dft_dict:
         run_script_aimd = dft_dict["aimdRunScript"]
         log.info(f"Run script for the AIMD calculation: {run_script_aimd}")
     else:
-        log.warning("No 'aimdRunScript' provided in YAML file, please specify it")
-        raise ValueError("No 'aimdRunScript' provided in YAML file, please specify it")
+        log.warning("No 'aimdRunScript' provided in input file, please specify it")
+        raise ValueError("No 'aimdRunScript' provided in input file, please specify it")
     
     #Read what is needed from manager_dict
     assert isinstance(manager_dict, dict)
@@ -59,7 +63,7 @@ def run_aimd(cpu_connection: Connection, directory_dict: dict, InputData: DataRe
     run_script_aimd_path = os.path.join(local_working_dir, run_script_aimd)
 
     #Check if there is a completed or ongoing calculation in local_dft_dir or remote_dft_dir
-    
+
     if (flyingpace.fpio.calc_done_in_local_dir(local_dft_dir)):
         log.warning(f"There already is a completed calculation in {local_dft_dir}")
         return
@@ -137,7 +141,7 @@ def run_aimd(cpu_connection: Connection, directory_dict: dict, InputData: DataRe
 
     return
 
-def run_scf_from_exploration(cpu_connection: Connection, directory_dict: dict, InputData: DataReader):
+def run_scf_from_exploration(InputData: DataReader):
     '''
     Start a series of scf calculations from a pickle file of extrapolative structures
     called 'extrapolative_structures.pckl.gzip' taken from the previous' generation
@@ -148,26 +152,30 @@ def run_scf_from_exploration(cpu_connection: Connection, directory_dict: dict, I
 
     dft_dict = InputData.dft_dict
 
+    directory_dict = InputData.directory_dict
+
+    cpu_connection = InputData.cpu_connection
+
     #Read what is needed from dft_dict
     assert isinstance(dft_dict, dict)
     if "dftCode" in dft_dict:
         dft_code = dft_dict["dftCode"]
-        log.info("The DFT code used is:" + dft_code)
+        log.info(f"The DFT code used is: {dft_code}" )
         if (dft_code in implemented_dft_codes):
             pass
         else:
             log.warning("The chosen DFT code is not implemented")
             raise NotImplementedError("The chosen DFT code is not implemented")
     else:
-        log.warning("No 'dftCode' provided in YAML file, please specify it")
-        raise ValueError("No 'dftCode' provided in YAML file, please specify it")
+        log.warning("No 'dftCode' provided in input file, please specify it")
+        raise ValueError("No 'dftCode' provided in input file, please specify it")
 
     if "scfRunScript" in dft_dict:
         run_script_scf = dft_dict["scfRunScript"]
         log.info(f"Run script for the SCF calculations: {run_script_scf}")
     else:
-        log.warning("No 'scfRunScript' provided in YAML file, please specify it")
-        raise ValueError("No 'scfRunScript' provided in YAML file, please specify it")
+        log.warning("No 'scfRunScript' provided in input file, please specify it")
+        raise ValueError("No 'scfRunScript' provided in input file, please specify it")
     
     #Get relevant directories from directory_dict
     assert isinstance(directory_dict, dict)
@@ -224,7 +232,7 @@ def run_scf_from_exploration(cpu_connection: Connection, directory_dict: dict, I
     local(f"cp {run_script_scf_path} {local_dft_dir}")
 
     #Prepare all a folder and an input file for each scf calculation
-    flyingpace.fpio.prepare_scf_calcs_from_pickle(directory_dict, InputData)
+    flyingpace.fpio.prepare_scf_calcs_from_pickle(InputData)
 
     #Copy local_dft_dir to remote_dft_dir
     if (cpu_connection != None):

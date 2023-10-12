@@ -3,9 +3,9 @@
 manager: 
 
   startGen: 0
-  finalGen : 10
-  startMode: 'fromScratch' 
-  #or fromPotential
+  finalGen : 1
+  systemName: 'Cs2AgBiCl6'
+  startFile: 'Cs2AgBiCl6.data' 
 
   CPUHost: 'ccc160'
   CPUUser: 'mgossler'
@@ -14,9 +14,9 @@ manager:
   GPUUser: 'nfcc010h'
   GPUJumpHost: 'cshpc.rrze.fau.de'
 
-  localWorkingDir: '/ccc160/mgossler/phd/work/project-ace/bin-ccc162/flyingPACE/examples/perovs-cpmd'
-  CPUWorkingDir: '/ccc160/mgossler/phd/work/project-ace/examples/perovs-cpmd'
-  GPUWorkingDir: '/home/titan/nfcc/nfcc010h/work/project-ace/examples/perovs-cpmd'
+  localWorkingDir: '/ccc160/mgossler/phd/work/project-ace/test_directory/Cs2AgBiCl6'
+  CPUWorkingDir: '/ccc160/mgossler/phd/work/project-ace/test_directory/Cs2AgBiCl6'
+  GPUWorkingDir: '/home/titan/nfcc/nfcc010h/work/project-ace/test_directory/Cs2AgBiCl6'
 
   CPUPython: '/ccc160/mgossler/bin/miniforge3/envs/ace/bin/python'
   GPUPython: '/home/titan/nfcc/nfcc010h/software/privat/conda/envs/ace/bin/python3'
@@ -37,30 +37,42 @@ pacemaker:
 
 exploration:
 
-  datafile: 'last'
   explorationRunScript: 'runbatch-exploration'
-  elementList : 'Ag Bi Cl Cs'
-  temp: 450.0
-  steps: 50000
-  lowerGamma : 5
-  upperGamma : 50
+  select: 300
   minExtrapolativeStructures: 10
+
+  explorationParams:
+
+    explorationStyle: 'noStop'
+    temp: 450.0
+    runType: 'NVT'
+    steps: 50000
+    lowerGamma : 5
+    upperGamma : 50
 
 dft:
   
   dftCode:  'CPMD'
   aimdRunScript: 'runbatch-aimd'
-  aimdInput: 'INP0'
   scfRunScript: 'runbatch-scf'
-  scfInput: 'INP-cpmd-scf'
-
   maxScfRuns: 300
-  pseudopotentials:
+
+  dftParams:
+  
+    maxStep : 50000
+    timeStep: 100
+    trajStep : 100
+    noseParams : '4  4  4  6  7  4'
+    temp : '450.d0  500.d0' 
+
+    maxIter : 100
+    convOrbital : '1d-6'
+    functional : 'pbeSol'
+    pwCutoff : 30
     
-    Bi: 'Bi.uspp736.pbesol'
-    Cl: 'Cl.uspp736.pbesol'
-    Cs: 'Cs-semi.uspp736.pbesol'
-    Ag: 'Ag.uspp736.pbesol'
-
-  ecut: 30
-
+    pseudopotentials:
+    
+      Bi: 'Bi.uspp736.pbesol'
+      Cl: 'Cl.uspp736.pbesol'
+      Cs: 'Cs-semi.uspp736.pbesol'
+      Ag: 'Ag.uspp736.pbesol'
