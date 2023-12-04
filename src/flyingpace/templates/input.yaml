@@ -64,7 +64,7 @@ fit:
   #  options: {maxcor: 100}
 
   ## Automatically find the smallest interatomic distance in dataset  and set inner cutoff based on this
-  #  repulsion: auto
+  repulsion: auto
 
   #  ladder_step: 100
   #  ladder_type: power_order

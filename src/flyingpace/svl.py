@@ -33,12 +33,7 @@ def run_explorative_md(InputData: DataReader):
     cpu_connection = InputData.cpu_connection
 
     #Read what is needed from exploration_dict
-    assert isinstance(exploration_dict, dict)
-    if "select" in exploration_dict:
-        select = True
-    else:
-        select = False
-    
+    assert isinstance(exploration_dict, dict)    
     if "explorationRunScript" in exploration_dict:
         run_script_exploration = exploration_dict["explorationRunScript"]
         log.info(f"Run script for exploration run: {run_script_exploration}")
@@ -50,37 +45,30 @@ def run_explorative_md(InputData: DataReader):
     assert isinstance(directory_dict, dict)
     local_working_dir = directory_dict["local_working_dir"]
     local_exploration_dir = directory_dict["local_exploration_dir"]
-    local_train_dir = directory_dict["local_train_dir"]
     if (cpu_connection != None):
         remote_exploration_dir = directory_dict["remote_exploration_dir"]
     #Construct absolute paths for files
     run_script_exploration_path = os.path.join(local_working_dir, run_script_exploration)
-    potential_file_path = os.path.join(local_train_dir, 'output_potential.yaml')
-    active_set_file_path = os.path.join(local_train_dir, 'output_potential.asi')
-    #Get datafile_path from manager_dict
+    #Get file paths from manager_dict
+    potential_file_path = manager_dict["potentialFilePath"]
+    active_set_file_path = manager_dict["activeSetFilePath"]
     datafile_path = manager_dict["dataFilePath"]
 
     #Check if there is a completed or ongoing calculation in local_exploration_dir or remote_exploration_dir
 
     if (flyingpace.fpio.calc_done_in_local_dir(local_exploration_dir)):
         log.warning(f"There already is a completed calculation in {local_exploration_dir}")
-        if select:
-            run_pace_select(InputData)
         return
     elif (flyingpace.fpio.calc_ongoing_in_local_dir(local_exploration_dir)):
         log.warning(f"There is an ongoing calculation in {local_exploration_dir}, is now waiting for it to finish")
         flyingpace.fpio.wait_for_calc_done(local_exploration_dir, cpu_connection)
         local(f"rm -rf {os.path.join(local_exploration_dir, 'CALC_ONGOING')}")
-        if select:
-            run_pace_select(InputData)
         return
 
     if (cpu_connection != None):
         
         if (flyingpace.fpio.calc_done_in_remote_dir(remote_exploration_dir, cpu_connection)):
             log.warning(f"There already is a completed calculation in {remote_exploration_dir}")
-            if select:
-                run_pace_select(InputData)
             log.warning(f"Copying results to {remote_exploration_dir}")
             flyingpace.sshutils.get_dir_as_archive(local_exploration_dir, remote_exploration_dir, cpu_connection)
             return
@@ -89,8 +77,6 @@ def run_explorative_md(InputData: DataReader):
             log.warning(f"There is an ongoing calculation in {remote_exploration_dir}, is now waiting for it to finish")
             flyingpace.fpio.wait_for_calc_done(remote_exploration_dir, cpu_connection)
             cpu_connection.run(f"rm -rf {os.path.join(remote_exploration_dir, 'CALC_ONGOING')}", hide='both')
-            if select:
-                run_pace_select(InputData)
             flyingpace.sshutils.get_dir_as_archive(local_exploration_dir, remote_exploration_dir, cpu_connection)
             return
     
@@ -136,74 +122,63 @@ def run_explorative_md(InputData: DataReader):
         cpu_connection.run(f"rm -rf {os.path.join(remote_exploration_dir, 'CALC_ONGOING')}", hide='both')
     log.info("Exploration run has finished")
 
-    if select:
-        run_pace_select(InputData)
-
     #Copy results to local folder
     if (cpu_connection != None):
         flyingpace.sshutils.get_dir_as_archive(local_exploration_dir, remote_exploration_dir, cpu_connection)
 
     return
 
-def run_pace_select(InputData: DataReader):
+def follow_up_exploration(InputData: DataReader):
     '''
-    Run pace_activeset in remote_exploration_dir or remote_exploration_dir if cpu_connection is None
+    If 'select' is in InputData, pace_select is run and the result is saved as 'extrapolative_structures.pckl.gzip'
+    if 'select' is not in InputData, extrapolative_dump_to_pickle is run to save 'extrapolative_structures.dump' directly
+    to 'extrapolative_structures.pckl.gzip' without running pace_select
     '''
-
-    log.info(f"Selecting extrapolative structures via pace_select")
 
     exploration_dict = InputData.exploration_dict
     manager_dict = InputData.manager_dict
 
     directory_dict = InputData.directory_dict
 
-    cpu_connection = InputData.cpu_connection
-
     #read what is needed from exploration_dict
     assert isinstance(exploration_dict, dict)
     if "select" in exploration_dict:
+        select = True
         select_num = exploration_dict["select"]
     else:
-        raise ValueError("Tried to run pace_select without 'select' being specified in the input file")
+        select = False
 
     #read what is needed from manager_dict
     assert isinstance(manager_dict, dict)
-    if "CPUpaceDir" in manager_dict:
-        pace_dir = manager_dict["CPUpaceDir"]
+    if "paceDir" in manager_dict:
+        pace_dir = manager_dict["paceDir"]
     else:
-        log.warning("No 'CPUpaceDir' provided in input file, please specify it")
-        raise ValueError("No 'CPUpaceDir' provided in input file, please specify it")
+        log.warning("No 'paceDir' provided in input file, please specify it")
+        raise ValueError("No 'paceDir' provided in input file, please specify it")
+    
+    log.info(f"Selecting extrapolative structures via pace_select")
 
     #Read what is needed from directory_dict an construct paths
     assert isinstance(directory_dict, dict)
     local_exploration_dir = directory_dict["local_exploration_dir"]
-    local_active_set_file_path = os.path.join(local_exploration_dir, 'output_potential.asi')
-    local_potential_file_path = os.path.join(local_exploration_dir, 'output_potential.yaml')
+    local_active_set_file_path = os.path.join(local_exploration_dir, os.path.basename(manager_dict["potentialFilePath"]))
+    local_potential_file_path = os.path.join(local_exploration_dir, os.path.basename(manager_dict["activeSetFilePath"]))
     local_extrapolative_dump_file_path = os.path.join(local_exploration_dir, 'extrapolative_structures.dump')
     local_selected_file_path = os.path.join(local_exploration_dir, 'selected.pkl.gz')
     local_output_pickle_file_path = os.path.join(local_exploration_dir, 'extrapolative_structures.pckl.gzip')
-    if (cpu_connection != None):
-        remote_exploration_dir = directory_dict["remote_exploration_dir"]
-        remote_active_set_file_path = os.path.join(remote_exploration_dir, 'output_potential.asi')
-        remote_potential_file_path = os.path.join(remote_exploration_dir, 'output_potential.yaml')
-        remote_extrapolative_dump_file_path = os.path.join(remote_exploration_dir, 'extrapolative_structures.dump')
-        remote_selected_file_path = os.path.join(remote_exploration_dir, 'selected.pkl.gz')
-        remote_output_pickle_file_path = os.path.join(remote_exploration_dir, 'extrapolative_structures.pckl.gzip')
-    ace_select_file_path = os.path.join(pace_dir, 'pace_select')
+    pace_select_file_path = os.path.join(pace_dir, 'pace_select')
 
-    #Read elementlist from manager_dict
-    element_list = manager_dict["elementList"]
+    if select:
 
-    if os.path.exists(local_output_pickle_file_path):
+        #Read elementlist from manager_dict
+        element_list = manager_dict["elementList"]
+
+        if os.path.exists(local_output_pickle_file_path):
             log.info(f"The pickle file {local_output_pickle_file_path} already exists")
             return
-    if (cpu_connection != None):
-        if exists(cpu_connection, remote_output_pickle_file_path):
-            log.info(f"The pickle file {remote_output_pickle_file_path} already exists")
-            return
 
-    #Check if all nessesary files exist
-    if (cpu_connection == None):
+        #Check if all nessesary files exist
+    
         if (os.path.exists(local_active_set_file_path) and\
         os.path.exists(local_potential_file_path) and\
         os.path.exists(local_extrapolative_dump_file_path)):
@@ -211,24 +186,13 @@ def run_pace_select(InputData: DataReader):
         else: 
             log.warning(f"Check if {local_active_set_file_path}, {local_potential_file_path} and {local_extrapolative_dump_file_path} are in their place")
             raise RuntimeError(f"Check if {local_active_set_file_path}, {local_potential_file_path} and {local_extrapolative_dump_file_path} are in their place")
-    elif (cpu_connection != None):
-        if (exists(cpu_connection, remote_active_set_file_path) and\
-            exists(cpu_connection, remote_potential_file_path) and\
-        exists(cpu_connection, remote_extrapolative_dump_file_path)):
-            pass
-        else: 
-            log.warning(f"Check if {remote_active_set_file_path}, {remote_potential_file_path} and {remote_extrapolative_dump_file_path} are in their place")
-            raise RuntimeError(f"Check if {remote_active_set_file_path}, {remote_potential_file_path} and {remote_extrapolative_dump_file_path} are in their place")
 
-    if (cpu_connection == None):
-        local(f'cd {local_exploration_dir} && {ace_select_file_path} -p {local_potential_file_path} -a {local_active_set_file_path} -e "{element_list}"\
+        local(f'cd {local_exploration_dir} && {pace_select_file_path} -p {local_potential_file_path} -a {local_active_set_file_path} -e "{element_list}"\
         -m {select_num} {local_extrapolative_dump_file_path}')
         local(f"yes | cp {local_selected_file_path} {local_output_pickle_file_path}")
-    elif (cpu_connection != None):
-        with cpu_connection.cd(remote_exploration_dir):
-            cpu_connection.run(f'cd {remote_exploration_dir} && {ace_select_file_path} -p {remote_potential_file_path} -a {remote_active_set_file_path} -e "{element_list}"\
-            -m {select_num} {remote_extrapolative_dump_file_path}', hide='both')
-            cpu_connection.run(f"yes | cp {remote_selected_file_path} {remote_output_pickle_file_path}", hide='both')
 
+        return
+    
+    if not select:
 
-    return
+        flyingpace.fpio.extrapolative_dump_to_pickle(InputData)

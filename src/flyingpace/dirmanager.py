@@ -13,7 +13,7 @@ from flyingpace.input import DataReader
 
 log = logging.getLogger(__name__)
 
-def create_gen_directories(gen: int, InputData: DataReader):
+def create_gen_directories(gen: int, InputData: DataReader, **kwargs):
     '''
     Creates all local and remote working directories for learning gerneration 'gen'
     and returns the paths for all directories in a dict
@@ -50,15 +50,15 @@ def create_gen_directories(gen: int, InputData: DataReader):
             log.warning("No 'GPUWorkingDir' provided in input file, please specify it")
             raise ValueError("No 'GPUWorkingDir' provided in input file, please specify it")
     
-    #Create loacal generation directory by combining the local working directory with the generation number
+    #Generate the path for local_gen_dir
     directory_dict["local_gen_dir"] = os.path.join(directory_dict["local_working_dir"], f"gen{str(gen)}")
         
-    #Create the paths for all directories
+    #Generate the paths for all directories
     directory_dict["local_train_dir"] = os.path.join(directory_dict["local_gen_dir"], "train")
     directory_dict["local_exploration_dir"] = os.path.join(directory_dict["local_gen_dir"], "exploration")
     directory_dict["local_dft_dir"] = os.path.join(directory_dict["local_gen_dir"], "dft")
     
-    #Create all directories if connections!=None
+    #Generate all directories if connections!=None
     if (cpu_connection != None):
         directory_dict["cpu_gen_dir"] = os.path.join(directory_dict["cpu_working_dir"], f"gen{str(gen)}")
         directory_dict["remote_exploration_dir"] = os.path.join(directory_dict["cpu_gen_dir"], "exploration")
@@ -67,56 +67,63 @@ def create_gen_directories(gen: int, InputData: DataReader):
         directory_dict["gpu_gen_dir"] = os.path.join(directory_dict["gpu_working_dir"], f"gen{str(gen)}")
         directory_dict["remote_train_dir"] = os.path.join(directory_dict["gpu_gen_dir"], "train")
 
-    #Create working directories if not there
-    if not os.path.exists(directory_dict["local_working_dir"]):
-        local(f'mkdir {directory_dict["local_working_dir"]}')
-    if ((cpu_connection != None) and not exists(cpu_connection, directory_dict["cpu_working_dir"])):
-        cpu_connection.run(f'mkdir {directory_dict["cpu_working_dir"]}', hide='both')
-    if ((gpu_connection != None) and not exists(gpu_connection, directory_dict["gpu_working_dir"])):
-        gpu_connection.run(f'mkdir {directory_dict["gpu_working_dir"]}', hide='both')
-
-    #Check if the local gen directories already exist
-    if os.path.exists(directory_dict["local_gen_dir"]):
-        log.warning(f"The local generation {gen} already exists!")
-        if not os.path.exists(directory_dict["local_train_dir"]):
-            local(f'mkdir {directory_dict["local_train_dir"]}')
-        if not os.path.exists(directory_dict["local_exploration_dir"]):
-            local(f'mkdir {directory_dict["local_exploration_dir"]}')
-        if not os.path.exists(directory_dict["local_dft_dir"]):
-            local(f'mkdir {directory_dict["local_dft_dir"]}')        
+    #If create_dictonaries=False, only the names are generated
+    if "create_dictonaries" in kwargs:
+        create_dictonaries = kwargs["create_dictonaries"]
     else:
-        #Create all local directories
-        local(f'mkdir {directory_dict["local_gen_dir"]} \
-        {directory_dict["local_train_dir"]} \
-        {directory_dict["local_exploration_dir"]} \
-        {directory_dict["local_dft_dir"]}')
+        create_dictonaries = True
 
-    #Check if the remote gen directories already exist
-    if (cpu_connection != None):
-        if (exists(cpu_connection, directory_dict["cpu_gen_dir"])):
-            log.warning(f"The remote generation {gen} already exists on the CPU host!")
-            if not os.path.exists(directory_dict["remote_exploration_dir"]):
-                cpu_connection.run(f'mkdir {directory_dict["remote_exploration_dir"]}', hide='both')
-            if not os.path.exists(directory_dict["remote_dft_dir"]):
-                cpu_connection.run(f'mkdir {directory_dict["remote_dft_dir"]}', hide='both')
+    if create_dictonaries:
+
+        #Create working directories if not there
+        if not os.path.exists(directory_dict["local_working_dir"]):
+            local(f'mkdir {directory_dict["local_working_dir"]}')
+        if ((cpu_connection != None) and not exists(cpu_connection, directory_dict["cpu_working_dir"])):
+            cpu_connection.run(f'mkdir {directory_dict["cpu_working_dir"]}', hide='both')
+        if ((gpu_connection != None) and not exists(gpu_connection, directory_dict["gpu_working_dir"])):
+            gpu_connection.run(f'mkdir {directory_dict["gpu_working_dir"]}', hide='both')
+
+        #Check if the local gen directories already exist
+        if os.path.exists(directory_dict["local_gen_dir"]):
+            log.warning(f"The local generation {gen} already exists!")
+            if not os.path.exists(directory_dict["local_train_dir"]):
+                local(f'mkdir {directory_dict["local_train_dir"]}')
+            if not os.path.exists(directory_dict["local_exploration_dir"]):
+                local(f'mkdir {directory_dict["local_exploration_dir"]}')
+            if not os.path.exists(directory_dict["local_dft_dir"]):
+                local(f'mkdir {directory_dict["local_dft_dir"]}')        
         else:
-            #Create all cpu directories
-            cpu_connection.run(f'mkdir {directory_dict["cpu_gen_dir"]}\
-            {directory_dict["remote_exploration_dir"]}\
-            {directory_dict["remote_dft_dir"]}', hide='both')
+            #Create all local directories
+            local(f'mkdir {directory_dict["local_gen_dir"]} \
+            {directory_dict["local_train_dir"]} \
+            {directory_dict["local_exploration_dir"]} \
+            {directory_dict["local_dft_dir"]}')
+
+        #Check if the remote gen directories already exist
+        if (cpu_connection != None):
+            if (exists(cpu_connection, directory_dict["cpu_gen_dir"])):
+                log.warning(f"The remote generation {gen} already exists on the CPU host!")
+                if not os.path.exists(directory_dict["remote_exploration_dir"]):
+                    cpu_connection.run(f'mkdir {directory_dict["remote_exploration_dir"]}', hide='both')
+                if not os.path.exists(directory_dict["remote_dft_dir"]):
+                    cpu_connection.run(f'mkdir {directory_dict["remote_dft_dir"]}', hide='both')
+            else:
+                #Create all cpu directories
+                cpu_connection.run(f'mkdir {directory_dict["cpu_gen_dir"]}\
+                {directory_dict["remote_exploration_dir"]}\
+                {directory_dict["remote_dft_dir"]}', hide='both')
             
-    if (gpu_connection != None):
-        #If CPU and GPU clusters have a sharded file system, gpu_gen_dir=cpu_gen_dir will already
-        #exists and an error will be thrown. To avoid this, it is checked if gpu_gen_dir and remote_train_dir
-        #exist.
-        if (exists(gpu_connection, directory_dict["gpu_gen_dir"]) and not exists(gpu_connection, directory_dict["remote_train_dir"])):
-            gpu_connection.run(f'mkdir {directory_dict["remote_train_dir"]}', hide='both')
-        elif (exists(gpu_connection, directory_dict["gpu_gen_dir"]) and exists(gpu_connection, directory_dict["remote_train_dir"])):
-            log.warning(f"The remote generation {gen} already exists on the GPU host!\n \
-            Please check if the right generation was specified")
-        else:
-            gpu_connection.run(f'mkdir {directory_dict["gpu_gen_dir"]}\
-            {directory_dict["remote_train_dir"]}', hide='both')
+        if (gpu_connection != None):
+            #If CPU and GPU clusters have a shared file system, gpu_gen_dir=cpu_gen_dir will already
+            #exists and an error will be thrown. To avoid this, it is checked if gpu_gen_dir and remote_train_dir
+            #exist.
+            if (exists(gpu_connection, directory_dict["gpu_gen_dir"]) and not exists(gpu_connection, directory_dict["remote_train_dir"])):
+                gpu_connection.run(f'mkdir {directory_dict["remote_train_dir"]}', hide='both')
+            elif (exists(gpu_connection, directory_dict["gpu_gen_dir"]) and exists(gpu_connection, directory_dict["remote_train_dir"])):
+                log.warning(f"The remote generation {gen} already exists on the GPU host!")
+            else:
+                gpu_connection.run(f'mkdir {directory_dict["gpu_gen_dir"]}\
+                {directory_dict["remote_train_dir"]}', hide='both')
         
     return directory_dict
 

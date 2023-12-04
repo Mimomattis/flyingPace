@@ -37,19 +37,20 @@ def main(args):
     log.info(f"Start reading flyingPace input file: {input_filename}")
     log.info(f"General information:")
     assert isinstance(manager_dict, dict)
+
     if "startGen" in manager_dict:
-        gen = manager_dict["startGen"]
-        log.info(f"Start from learning generation: {str(gen)}")
+        start_gen = manager_dict["startGen"]
+        log.info(f"Start from learning generation: {str(start_gen)}")
     else:
         log.warning("No 'startGen' provided in input file, the default is 0")
-        gen = 0 
+        start_gen = 0 
 
     if "finalGen" in manager_dict:
         final_gen = manager_dict["finalGen"]
         log.info(f"Final learning generation will be: {str(final_gen)}")
     else:
         log.warning("No 'finalGen' provided in input file, the default is 10")
-        gen = 10 
+        final_gen = 10
         log.info(f"Final learning generation will be: {str(final_gen)}")
 
     if "systemName" in manager_dict:
@@ -58,13 +59,14 @@ def main(args):
     else:
         log.warning("No 'systemName' provided in input file, please specify it")
         raise ValueError("No 'systemName' provided in input file, please specify it")
-
-    if "startFile" in manager_dict:
-        start_file = manager_dict["startFile"]
-        log.info(f"The flyingPace run is started from file: {start_file}")
-    else:
-        log.warning("No 'startFile' provided in input file, please specify it")
-        raise ValueError("No 'startFile' provided in input file, please specify it")
+    
+    if (start_gen == 0):
+        if "startFile" in manager_dict:
+            start_file = manager_dict["startFile"]
+            log.info(f"The flyingPace run is started from file: {start_file}")
+        else:
+            log.warning("No 'startFile' provided in input file, please specify it")
+            raise ValueError("No 'startFile' provided in input file, please specify it")
     
     #TODO:Is there a better way to do this, maybe activate the cond env on the clusters
     if "CPUPython" in manager_dict:
@@ -86,25 +88,94 @@ def main(args):
     InputData.cpu_connection = cpu_connection
     InputData.gpu_connection = gpu_connection
 
-    #Create all initial working directories on the local and remote clusters
-    directory_dict = flyingpace.dirmanager.create_gen_directories(0, InputData)
-    InputData.directory_dict = directory_dict
+    if (start_gen == 0):
 
-    #Read the start file type and write all needed files to start
-    start_file_type = flyingpace.fpio.check_start_file_type(start_file)  
-    InputData.change_data("manager_dict", "startFileType", start_file_type)
-    if (start_file_type == "dft_input_file"):
-        InputData.change_data("manager_dict", "startInputFilePath", os.path.join(directory_dict["local_working_dir"], start_file))
-        flyingpace.fpio.datafile_from_dft_input(InputData)
-        InputData.change_data("manager_dict", "dataFilePath", os.path.join(directory_dict["local_working_dir"], f"{system_name}.data"))
+        #Create all initial working directories on the local and remote clusters
+        directory_dict = flyingpace.dirmanager.create_gen_directories(start_gen, InputData)
+        InputData.directory_dict = directory_dict
 
-    elif (start_file_type == "lammps_datafile"):
-        InputData.change_data("manager_dict", "dataFilePath", os.path.join(directory_dict["local_working_dir"], start_file))
-        flyingpace.fpio.write_aimd_input_file(InputData)
-        InputData.change_data("manager_dict", "startInputFilePath", os.path.join(directory_dict["local_working_dir"], f"INP0"))
+        #Read the start file type and write all needed files to start
+        start_file_type = flyingpace.fpio.check_start_file_type(start_file)  
+        InputData.change_data("manager_dict", "startFileType", start_file_type)
+
+        if (start_file_type == "dft_input_file"):
+
+            log.info(f"Starting from DFT input file!")
+
+            InputData.change_data("manager_dict", "startInputFilePath", os.path.join(directory_dict["local_working_dir"], start_file))
+
+            flyingpace.fpio.datafile_from_dft_input(InputData)
+            InputData.change_data("manager_dict", "dataFilePath", os.path.join(directory_dict["local_working_dir"], f"{system_name}.data"))
+
+        elif (start_file_type == "lammps_datafile"):
+
+            log.info(f"Starting from LAMMPS data file!")
+
+            InputData.change_data("manager_dict", "dataFilePath", os.path.join(directory_dict["local_working_dir"], start_file))
+
+            flyingpace.fpio.write_aimd_input_file(InputData)
+            InputData.change_data("manager_dict", "startInputFilePath", os.path.join(directory_dict["local_working_dir"], f"INP0"))
+
+        elif (start_file_type == "pickle_file"):
+
+            log.info(f"Starting from pickle file!")
+
+            InputData.change_data("manager_dict", "pickleFilePath", os.path.join(directory_dict["local_working_dir"], pickle_file))
+
+            if "dataFile" in manager_dict:
+                data_file = manager_dict["dataFile"]
+                log.info(f"Reading data file {data_file}")
+                InputData.change_data("manager_dict", "dataFilePath", os.path.join(directory_dict["local_working_dir"], data_file))
+            else: 
+                log.warning("No dataFile provided in input file, please specify it")
+                raise ValueError("No dataFile provided in input file, please specify it")
+
+        elif (start_file_type == "potential_file"):
+
+            log.info(f"Starting from potential file!")
+
+            InputData.change_data("manager_dict", "potentialFilePath", os.path.join(directory_dict["local_working_dir"], start_file))
+
+            if "pickleFile" in manager_dict:
+                pickle_file = manager_dict["pickleFile"]
+                log.info(f"Reading pickle file {pickle_file}")
+                InputData.change_data("manager_dict", "pickleFilePath", os.path.join(directory_dict["local_working_dir"], pickle_file))
+            else: 
+                log.warning("No pickleFile provided in input file, please specify it")
+                raise ValueError("No pickleFile provided in input file, please specify it")
+            
+            if "activeSetFile" in manager_dict:
+                active_set_file = manager_dict["activeSetFile"]
+                log.info(f"Reading active set file {pickle_file}")
+                InputData.change_data("manager_dict", "activeSetFilePath", os.path.join(directory_dict["local_working_dir"], active_set_file))
+            else: 
+                log.warning("No activeSetFile provided in input file, please specify it")
+                raise ValueError("No activeSetFile provided in input file, please specify it")
+            
+            if "dataFile" in manager_dict:
+                data_file = manager_dict["dataFile"]
+                log.info(f"Reading data file {data_file}")
+                InputData.change_data("manager_dict", "dataFilePath", os.path.join(directory_dict["local_working_dir"], data_file))
+            else: 
+                log.warning("No dataFile provided in input file, please specify it")
+                raise ValueError("No dataFile provided in input file, please specify it")
+            
+    
+    elif (start_gen != 0):
+
+        #Get paths for all initial working directories on the local and remote clusters
+        directory_dict = flyingpace.dirmanager.create_gen_directories(start_gen, InputData, create_dictonaries = False)
+        InputData.directory_dict = directory_dict
+
+        InputData.change_data("manager_dict", "potentialFilePath", os.path.join(directory_dict["local_train_dir"], f"{system_name}.yaml"))
+        InputData.change_data("manager_dict", "activeSetFilePath", os.path.join(directory_dict["local_train_dir"], f"{system_name}.asi"))
+        InputData.change_data("manager_dict", "pickleFilePath", os.path.join(directory_dict["local_train_dir"], f"{system_name}.pckl.gzip"))
+        InputData.change_data("manager_dict", "dataFilePath", os.path.join(directory_dict["local_exploration_dir"], f"{system_name}.data"))
 
     #Add element list from the datafile to manager_dict
     flyingpace.fpio.element_list_from_datafile(InputData)
+
+    gen = start_gen
 
     #Start with the section that is only relevant for the 0th learning generation
     if (gen == 0):
@@ -118,9 +189,17 @@ def main(args):
             flyingpace.svd.run_aimd(InputData)
             flyingpace.fpio.aimd_to_pickle(InputData)
             flyingpace.svp.run_pacemaker(InputData)
-            flyingpace.fpio.update_datafile('last', InputData)
+            flyingpace.svp.follow_up_pacemaker(InputData)
             flyingpace.svl.run_explorative_md(InputData)
-            flyingpace.fpio.extrapolative_dump_to_pickle(InputData)
+            flyingpace.svl.follow_up_exploration(InputData)
+        elif (start_file_type == "pickle_file"):
+            flyingpace.svp.run_pacemaker(InputData)
+            flyingpace.svp.follow_up_pacemaker(InputData)
+            flyingpace.svl.run_explorative_md(InputData)
+            flyingpace.svl.follow_up_exploration(InputData)
+        elif (start_file_type == "potential_file"):
+            flyingpace.svl.run_explorative_md(InputData)
+            flyingpace.svl.follow_up_exploration(InputData)
         else:
             log.warning(f"This start Mode is not implemented!")
             raise ValueError(f"This start Mode is not implemented!")
@@ -141,8 +220,9 @@ def main(args):
         flyingpace.fpio.scfs_to_pickle(InputData)
         flyingpace.fpio.merge_pickle(InputData)
         flyingpace.svp.run_pacemaker(InputData, restart=True)
+        flyingpace.svp.follow_up_pacemaker(InputData)
         flyingpace.svl.run_explorative_md(InputData)
-        flyingpace.fpio.extrapolative_dump_to_pickle(InputData)
+        flyingpace.svl.follow_up_exploration(InputData)
 
         gen += 1
 

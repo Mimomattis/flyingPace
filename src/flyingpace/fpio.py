@@ -162,7 +162,7 @@ def generate_pace_input(dataset_file_path: str, directory_dict: dict, InputData:
     pacemaker_dict = InputData.pacemaker_dict
 
 
-    #Read what is needed from pacemaker_dict
+    #Read what is needed from pacemaker_dictq
     assert isinstance(pacemaker_dict, dict)
     if "testSize" in pacemaker_dict:
         test_size = pacemaker_dict["testSize"]
@@ -333,7 +333,7 @@ fix 6 all nvt temp {startTemp} {endTemp} $(100.0*dt)\n\
 run {steps}',
         
         'NPT' : '\nvelocity all create {startTemp} 67 dist gaussian\n\
-fix 6 all npt temp {startTemp} {endTemp} $(100.0*dt) iso {startPress} {startPress} $(1000.0*dt)\n\
+fix 6 all npt temp {startTemp} {endTemp} $(100.0*dt) aniso {startPress} {startPress} $(1000.0*dt)\n\
 run {steps}',
     },           
 }
@@ -369,9 +369,11 @@ run {steps}',
 
     #Read elementlist from manager_dict
     input_data_dict["elementList"] = manager_dict["elementList"]
+    input_data_dict["potentialFile"] = os.path.basename(manager_dict["potentialFilePath"])
+    input_data_dict["activeSetFile"] = os.path.basename(manager_dict["activeSetFilePath"])
     
-    input += "pair_coeff * * ${{submitdir}}/output_potential.yaml\
- ${{submitdir}}/output_potential.asi {elementList}\n"
+    input += "pair_coeff * * ${{submitdir}}/{potentialFile}\
+ ${{submitdir}}/{activeSetFile} {elementList}\n"
 
     #Start with the simulation section
     
@@ -649,14 +651,22 @@ def merge_pickle(InputData: DataReader):
 
     directory_dict = InputData.directory_dict
 
+    manager_dict = InputData.manager_dict
+
     #Get relevant directories from directory_dict
     assert isinstance(directory_dict, dict)
     local_dft_dir = directory_dict["local_dft_dir"]
     prev_local_dft_dir = flyingpace.dirmanager.get_prev_path(local_dft_dir)
 
-    new_pickle_file_path = os.path.join(local_dft_dir, 'new_dft_data.pckl.gzip')
-    prev_pickle_file_path = os.path.join(prev_local_dft_dir, 'dft_data.pckl.gzip')
-    pickle_file_path = os.path.join(local_dft_dir, 'dft_data.pckl.gzip')
+    system_name = manager_dict["systemName"]
+    new_pickle_file_path = os.path.join(local_dft_dir, f"new_dft_data.pckl.gzip")
+    prev_pickle_file_path = manager_dict["pickleFilePath"]
+    pickle_file_path = os.path.join(local_dft_dir, f"{system_name}.pckl.gzip")
+
+    if os.path.exists(pickle_file_path):
+        log.info(f"Pickle file {pickle_file_path} already exists!")
+        InputData.change_data("manager_dict", "pickleFilePath", pickle_file_path)
+        return
 
     new_data = pd.read_pickle(new_pickle_file_path, compression="gzip")
     old_data = pd.read_pickle(prev_pickle_file_path, compression="gzip")
@@ -672,18 +682,23 @@ def merge_pickle(InputData: DataReader):
     combined_data.to_pickle(pickle_file_path, compression='gzip', protocol=4)
     log.info(f"Merging pickle files {new_pickle_file_path} and {prev_pickle_file_path} to {pickle_file_path}")
 
+    InputData.change_data("manager_dict", "pickleFilePath", pickle_file_path)
+
     return
 
 def update_datafile(mode:str, InputData: DataReader):
     '''
-    Reads the pickle file 'dft_data.pckl.gzip' from local_train_dir, 
+    Reads the current pickle file,
     chooses a random structure and saves it as a lammps data file
     in local_train_dir and updates its path to manager_dict["dataFilePath"]
     '''
 
     directory_dict = InputData.directory_dict
-    local_train_dir = directory_dict["local_train_dir"]
-    pickle_file_path = os.path.join(local_train_dir, "dft_data.pckl.gzip")
+
+    manager_dict = InputData.manager_dict
+
+    local_dft_dir = directory_dict["local_dft_dir"]
+    pickle_file_path = manager_dict["pickleFilePath"]
 
     if (os.path.exists(pickle_file_path)):
         pass
@@ -694,13 +709,13 @@ def update_datafile(mode:str, InputData: DataReader):
     df = pd.read_pickle(pickle_file_path, compression="gzip")
 
     if (mode == "random"):
-        datafile_path = os.path.join(local_train_dir, "random_structure.data")
+        datafile_path = os.path.join(local_dft_dir, "random_structure.data")
         num_structures = df.shape[0]
         structure_id = random.randint(0,num_structures-1)
         structure = df.loc[structure_id,"ase_atoms"]
 
     if (mode == "last"):
-        datafile_path = os.path.join(local_train_dir, "last_structure.data")
+        datafile_path = os.path.join(local_dft_dir, "last_structure.data")
         num_structures = df.shape[0]
         structure = df.loc[num_structures-1,"ase_atoms"]
 
@@ -769,7 +784,7 @@ def extrapolative_dump_to_pickle(InputData: DataReader):
 def prepare_scf_calcs_from_pickle(InputData: DataReader):
     '''
     Reads 'extrapolative_structures.pckl.gzip' from prev_local_exploration_dir
-    and constructs CPMD scf input files from them in local_dft_dir, one folder for each calculation
+    and constructs scf input files from them in local_dft_dir, one folder for each calculation
     '''
 
     dft_dict = InputData.dft_dict
@@ -888,12 +903,15 @@ def scfs_to_pickle(InputData: DataReader):
     log.info(f"Gathering results of scf calculations in {pickle_file_path}")
 
     df.to_pickle(pickle_file_path, compression='gzip', protocol=4)
+
     log.info(f"Saved '{pickle_file_path}'")
+
+    return
 
 def aimd_to_pickle(InputData: DataReader):
     '''
     Reads output data from a AIMD run in local_dft_dir 
-    and saves it in local_dft_dir as 'dft_data.pckl.gzip'
+    and saves it in local_dft_dir as '{systemName}.pckl.gzip'
     '''
 
     log.info(f"Gathering data from AIMD run")
@@ -907,12 +925,14 @@ def aimd_to_pickle(InputData: DataReader):
     #Get relevant directories from directory_dict
     assert isinstance(directory_dict, dict)
     local_dft_dir = directory_dict["local_dft_dir"]
-    #Construct absolute paths for files
-    pickle_file_path = os.path.join(local_dft_dir, 'dft_data.pckl.gzip')
+    #Construct absolute paths for files and change in in InputData
+    pickle_file_path = os.path.join(local_dft_dir, f"{manager_dict['systemName']}.pckl.gzip")
+    InputData.change_data("manager_dict", "pickleFilePath", pickle_file_path)
 
     #Check wheter a pickle file already exists and skip the function if it does
     if os.path.exists(pickle_file_path):
-        log.warning(f"There already is a file called 'dft_data.pckl.gzip' in {local_dft_dir}, skipping the rest")
+        log.warning(f"There already is a file called {manager_dict['systemName']}.pckl.gzip in {local_dft_dir}, skipping the rest")
+        InputData.change_data("manager_dict", "pickleFilePath", pickle_file_path)
         return
 
     #Read what is needed from dft_dict
@@ -950,7 +970,7 @@ def aimd_to_pickle(InputData: DataReader):
     #Construct absolute paths for files  
     aimd_input_file_path = manager_dict["startInputFilePath"]
 
-    #Check if it there is a completed calculation
+    #Check if there is a completed calculation
     calc_done = calc_done_in_local_dir(local_dft_dir)
     if calc_done:
         pass
@@ -975,6 +995,8 @@ def aimd_to_pickle(InputData: DataReader):
         element_dict = Counter(symbols)
         for element in element_dict:
             ref_e += element_dict[element]*reference_energy[element]
+        energies_corr = energies_corr - ref_e
+        ref_e = np.full(shape=len(energy_list),fill_value=ref_e)
         
     #Save all data in Data Frame
     data = {'energy': energy_list,
@@ -986,6 +1008,7 @@ def aimd_to_pickle(InputData: DataReader):
 
     df = pd.DataFrame(data)
     df.to_pickle(pickle_file_path, compression='gzip', protocol=4)
+
     log.info(f"Saved '{pickle_file_path}'")
 
     return

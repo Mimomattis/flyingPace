@@ -107,12 +107,6 @@ def read_cpmd_md(aimd_input_file_path: str, local_dft_dir:str):
         TRAJECTORY and FTRAJECTORY files in {local_dft_dir}")
         raise RuntimeError(f"Check if there are {os.path.basename(aimd_input_file_path)}, ENERGIES,\
         TRAJECTORY and FTRAJECTORY files in {local_dft_dir}")
-    
-    def get_cell(celldm):
-        cell = [[celldm, 0.0, 0.0],
-                [0.0, celldm, 0.0],
-                [0.0, 0.0, celldm]]
-        return cell
 
     #Data lists for all configurations
     energy_list = []
@@ -145,13 +139,28 @@ def read_cpmd_md(aimd_input_file_path: str, local_dft_dir:str):
     ff = open(forces_file_path, 'r')
 
     #Read cell parameter
-    cmd1 = f"grep -A1 'CELL' " + aimd_input_file_path + " | tail -1 | awk '{print $1}' "
-    celldm = float(os.popen(cmd1).read())
-    with open (aimd_input_file_path) as f:
-        input_data = f.read()
-    if not ('ANGSTROM' in input_data):
-        celldm = celldm * Bohr
-    cell = get_cell(celldm)
+    cpmd_cell = "CELL VECTORS"
+    with open(aimd_input_file_path, 'r') as f:
+        cpmd_lines = f.readlines()
+    
+    for idx, line in enumerate(cpmd_lines):
+        if cpmd_cell in line:
+            cell_idx = idx
+
+        if 'ANGSTROM' in line:
+            angstrom = True
+        else:
+            angstrom = False
+    
+    cell = []
+    for i in range(3):
+        vec = cpmd_lines[cell_idx+i+1].strip().split()
+        cell.append(vec)
+
+    if angstrom:
+        cell = np.asarray(cell, dtype=float)
+    elif not angstrom:
+        cell = np.asarray(cell, dtype=float) * Bohr
 
     #Loop through configurations in MD
     for i in range(num_steps):
@@ -295,7 +304,7 @@ def write_cpmd_input(structure: Atoms, input_file_path: str, dft_dict: dict):
             'fromScratch' : '    INITIALIZE WAVEFUNCTION RANDOM\n',
         },
 
-        #Input options regarding moleculra dynamics
+        #Input options regarding molecular dynamics
         'maxStep' : '    MAXSTEP\n        {maxStep}\n',
         'timeStep' : '    TIMESTEP\n        {timeStep}\n',
         'trajStep' : '    TRAJECTORY SAMPLE XYZ FORCES\n        {trajStep}\n',
@@ -310,7 +319,10 @@ def write_cpmd_input(structure: Atoms, input_file_path: str, dft_dict: dict):
             'pbeSol' : '    GRADIENT CORRECTION PBESX PBESC\n',
             'pbe' : '    GRADIENT CORRECTION PBEX PBEC\n',
         },
-        'pwCutoff' : '    CUTOFF\n        {pwCutoff}\n',   
+        'pwCutoff' : '    CUTOFF\n        {pwCutoff}\n',
+        'vdwCorrection' : '&VDW\n    GRIMME CORRECTION\n    VDW VERSION\n\
+        D2\n    VDW RCUT\n        100.0\n    VDW PERIODICITY\n        1 1 1\n\
+    VDW INTERACTION PAIRS\n        1 1\n    END GRIMME CORRECTION\n&END\n'
     }
 
     cpmd_technical_block = "    ODIIS NO_RESET=-1\n        10\n    MEMORY BIG\n\
@@ -435,6 +447,10 @@ def write_cpmd_input(structure: Atoms, input_file_path: str, dft_dict: dict):
             raise ValueError("'functional' type in dft options is not known")
 
     input += "    EXCHANGE CORRELATION TABLE NO\n&END\n\n"
+
+    if "vdwCorrection" in input_data_dict:
+        if input_data_dict["vdwCorrection"]:
+            input += input_options["vdwCorrection"]
 
     #Start with the &ATOMS section
 

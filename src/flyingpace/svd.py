@@ -245,6 +245,7 @@ def run_scf_from_exploration(InputData: DataReader):
         local(f"cd {local_dft_dir} && sbatch {os.path.basename(run_script_scf_path)}")
         flyingpace.fpio.wait_for_calc_done(local_dft_dir, cpu_connection)
         local(f"rm -rf {os.path.join(local_dft_dir, 'CALC_ONGOING')}")
+        flyingpace.sshutils.gather_files(local_dft_dir, local_scf_results_dir, "scf", ["OUT"], cpu_connection)
     elif (cpu_connection != None):
         log.info("Starting SCF runs, is now waiting for them to finish")
         cpu_connection.run(f"touch {os.path.join(remote_dft_dir, 'CALC_ONGOING')}", hide='both')
@@ -252,9 +253,10 @@ def run_scf_from_exploration(InputData: DataReader):
             cpu_connection.run(f"sbatch {os.path.basename(run_script_scf_path)}", hide='both')
         flyingpace.fpio.wait_for_calc_done(remote_dft_dir, cpu_connection)
         cpu_connection.run(f"rm -rf {os.path.join(local_dft_dir, 'CALC_ONGOING')}", hide='both')
+        flyingpace.sshutils.gather_files(remote_dft_dir, local_scf_results_dir, "scf", ["OUT"], cpu_connection)
     log.info("SCF runs have finished")
 
-    flyingpace.sshutils.gather_files(remote_dft_dir, remote_scf_results_dir, "scf", ["OUT"], cpu_connection)
+    
     
     if (cpu_connection != None):
         flyingpace.sshutils.get_dir_as_archive(local_scf_results_dir, remote_scf_results_dir, cpu_connection)

@@ -233,6 +233,10 @@ def gather_files(dir: str, gather_dir: str, dir_pattern: str, file_list: list, r
                     #Copy the file
                     c.run(f"cp {old_file_path} {new_file_path}", hide='both')
     else:
+        if os.path.exists(gather_dir):
+            log.warning(f"{gather_dir} already exists!")
+            return
+
         local(f"mkdir {gather_dir}")
         #Use the 'ls' command with the folder pattern to list matching folders
         #an -v1 to sort numerically 
