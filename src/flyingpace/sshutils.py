@@ -21,102 +21,159 @@ def initialize_connections(InputData: DataReader):
     manager_dict = InputData.manager_dict
 
     #Read what is needed from manager_dict
-    if "CPUHost" in manager_dict:
-        cpu_host = manager_dict["CPUHost"]
-        if (cpu_host == 'local'):
-            log.info(f"CPU calculations are done locally")
+    if "DFTHost" in manager_dict:
+        dft_host = manager_dict["DFTHost"]
+        if (dft_host == 'local'):
+            log.info(f"DFT calculations are done locally")
         else:
-            log.info(f"CPU host: {cpu_host}")
+            log.info(f"DFT host: {dft_host}")
     else:
-        log.warning("No 'CPUHost' provided in input file, please specify it")
-        raise ValueError("No 'CPUHost' provided in input file, please specify it")
+        dft_host = 'local'
+        log.warning(f"DFT calculations are done locally")
     
-    if "GPUHost" in manager_dict:
-        gpu_host = manager_dict["GPUHost"]
-        if (gpu_host == 'local'):
-            log.info(f"CPU calculations are done locally")
+    if "TrainHost" in manager_dict:
+        train_host = manager_dict["TrainHost"]
+        if (train_host == 'local'):
+            log.info(f"Train calculations are done locally")
         else:
-            log.info(f"GPU host: {gpu_host}")
+            log.info(f"Train host: {train_host}")
     else:
-        log.warning("No 'GPUHost' provided in input file, please specify it")
-        raise ValueError("No 'GPUHost' provided in input file, please specify it")
+        train_host = 'local'
+        log.warning(f"Train calculations are done locally")
     
-    if (cpu_host != "local"):
-        if "CPUUser" in manager_dict:
-            cpu_user = manager_dict["CPUUser"]
-            log.info(f"CPU user: {cpu_user}")
+    if "ExplorationHost" in manager_dict:
+        exploration_host = manager_dict["ExplorationHost"]
+        if (exploration_host == 'local'):
+            log.info(f"Exploration calculations are done locally")
         else:
-            log.warning("No 'CPUUser' provided in input file, please specify it")
-            raise ValueError("No 'CPUUser' provided in input file, please specify it")
+            log.info(f"Exploration host: {exploration_host}")
+    else:
+        exploration_host = 'local'
+        log.warning(f"Exploration calculations are done locally")
+    
+    if (dft_host != "local"):
+        if "DFTUser" in manager_dict:
+            dft_user = manager_dict["DFTUser"]
+            log.info(f"DFT user: {dft_user}")
+        else:
+            log.warning("No 'DFTUser' provided in input file, please specify it")
+            raise ValueError("No 'DFTUser' provided in input file, please specify it")
         
-        if "CPUJumpHost" in manager_dict:
-            cpu_jump_host = manager_dict["CPUJumpHost"]
-            log.info(f"CPU Jump host: {cpu_jump_host}")
+        if "DFTJumpHost" in manager_dict:
+            dft_jump_host = manager_dict["DFTJumpHost"]
+            log.info(f"DFT Jump host: {dft_jump_host}")
         else:
-            cpu_jump_host = None
+            dft_jump_host = None
             
-    if (gpu_host != "local"):
-        if "GPUUser" in manager_dict:
-            gpu_user = manager_dict["GPUUser"]
-            log.info(f"GPU user: {gpu_user}")
+    if (train_host != "local"):
+        if "TrainUser" in manager_dict:
+            train_user = manager_dict["TrainUser"]
+            log.info(f"Train User: {train_user}")
         else:
-            log.warning("No 'GPUUser' provided in input file, please specify it")
-            raise ValueError("No 'GPUUser' provided in input file, please specify it")
-        if "GPUJumpHost" in manager_dict:
-            gpu_jump_host = manager_dict["GPUJumpHost"]
-            log.info(f"GPU Jump host: {gpu_jump_host}")
+            log.warning("No 'TrainUser' provided in input file, please specify it")
+            raise ValueError("No 'TrainUser' provided in input file, please specify it")
+        
+        if "TrainJumpHost" in manager_dict:
+            train_jump_host = manager_dict["TrainJumpHost"]
+            log.info(f"Train Jump host: {train_jump_host}")
         else:
-            gpu_jump_host = None
+            train_jump_host = None
+
+    if (exploration_host != "local"):
+        if "ExplorationUser" in manager_dict:
+            exploration_user = manager_dict["TrainUser"]
+            log.info(f"Exploration User: {exploration_user}")
+        else:
+            log.warning("No 'ExplorationUser' provided in input file, please specify it")
+            raise ValueError("No 'ExplorationUser' provided in input file, please specify it")
+        
+        if "ExplorationJumpHost" in manager_dict:
+            exploration_jump_host = manager_dict["ExplorationJumpHost"]
+            log.info(f"Exploration Jump host: {exploration_jump_host}")
+        else:
+            exploration_jump_host = None
 
     #Setup for the ssh connection
-    if (cpu_host == "local"):
-        cpu_connection = None
-    elif (cpu_jump_host == None):
-        cpu_connection = Connection(host=cpu_host, 
-                                    user=cpu_user, 
+    if (dft_host == "local"):
+        dft_connection = None
+    elif (dft_jump_host == None):
+        dft_connection = Connection(host=dft_host, 
+                                    user=dft_user, 
                                     )
     else:
-        cpu_connection = Connection(host=cpu_host, 
-                                    user=cpu_user, 
+        dft_connection = Connection(host=dft_host, 
+                                    user=dft_user, 
                                     gateway=Connection(
-                                            host=cpu_jump_host,
-                                            user=cpu_user
-                                            ),
-                                    )
-    if (gpu_host == "local"):
-        gpu_connection = None
-    elif (gpu_jump_host == None):
-        gpu_connection = Connection(host=gpu_host, 
-                                    user=gpu_user, 
-                                    )
-    else:
-        gpu_connection = Connection(host=gpu_host, 
-                                    user=gpu_user, 
-                                    gateway=Connection(
-                                            host=gpu_jump_host,
-                                            user=gpu_user
+                                            host=dft_jump_host,
+                                            user=dft_user
                                             ),
                                     )
         
-    #Test if both connections are correctly set up, if not throw an exception
-    if (cpu_connection != None):
-        try:
-            cpu_connection.run("echo 'CPU connection is working'", hide='both')
-        except Exception as ex:
-            template = "An exception of type {0} occurred. Arguments:\n{1!r}\n \
-            CPU connection could not be opend, check given details in input file"
-            message = template.format(type(ex).__name__, ex.args)
-            log.info(message)
-    if (gpu_connection != None):       
-        try:
-            gpu_connection.run("echo 'GPU connection is working'", hide='both')
-        except Exception as ex:
-            template = "An exception of type {0} occurred. Arguments:\n{1!r}\n \
-            GPU connection could not be opend, check given details in input file"
-            message = template.format(type(ex).__name__, ex.args)
-            log.info(message)
+    if (train_host == "local"):
+        train_connection = None
+    elif (train_jump_host == None):
+        train_connection = Connection(host=train_host, 
+                                    user=train_user, 
+                                    )
+    else:
+        train_connection = Connection(host=train_host, 
+                                    user=train_user, 
+                                    gateway=Connection(
+                                            host=train_jump_host,
+                                            user=train_user
+                                            ),
+                                    )
+        
+    if (exploration_host == "local"):
+        exploration_connection = None
+    elif (exploration_jump_host == None):
+        exploration_connection = Connection(host=exploration_host, 
+                                    user=exploration_user, 
+                                    )
+    else:
+        exploration_connection = Connection(host=exploration_host, 
+                                    user=exploration_user, 
+                                    gateway=Connection(
+                                            host=exploration_jump_host,
+                                            user=exploration_user
+                                            ),
+                                    )
     
-    return cpu_connection, gpu_connection
+    
+        
+    #Test if both connections are correctly set up, if not throw an exception
+    if (dft_connection != None):
+        try:
+            dft_connection.run("echo 'DFT connection is working'", hide='both')
+        except Exception as ex:
+            template = "An exception of type {0} occurred. Arguments:\n{1!r}\n \
+            DFT connection could not be opend, check given details in input file"
+            message = template.format(type(ex).__name__, ex.args)
+            log.info(message)
+
+    if (train_connection != None):       
+        try:
+            train_connection.run("echo 'Train connection is working'", hide='both')
+        except Exception as ex:
+            template = "An exception of type {0} occurred. Arguments:\n{1!r}\n \
+            Train connection could not be opend, check given details in input file"
+            message = template.format(type(ex).__name__, ex.args)
+            log.info(message)
+
+    if (exploration_connection != None):       
+        try:
+            exploration_connection.run("echo 'Exploration connection is working'", hide='both')
+        except Exception as ex:
+            template = "An exception of type {0} occurred. Arguments:\n{1!r}\n \
+            Exploration connection could not be opend, check given details in input file"
+            message = template.format(type(ex).__name__, ex.args)
+            log.info(message)
+
+    InputData.dft_connection = dft_connection
+    InputData.train_connection = train_connection
+    InputData.exploration_connection = exploration_connection
+    
+    return 
 
 def check_same_dir(func):
     '''

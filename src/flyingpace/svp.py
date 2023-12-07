@@ -29,7 +29,7 @@ def run_pacemaker(InputData: DataReader, **kwargs):
 
     directory_dict = InputData.directory_dict
 
-    gpu_connection = InputData.gpu_connection
+    train_connection = InputData.train_connection
 
     #Read what is needed from pacemaker_dict
     assert isinstance(pacemaker_dict, dict)
@@ -44,7 +44,7 @@ def run_pacemaker(InputData: DataReader, **kwargs):
     assert isinstance(directory_dict, dict)
     local_working_dir = directory_dict["local_working_dir"]
     local_train_dir = directory_dict["local_train_dir"]
-    if (gpu_connection != None):
+    if (train_connection != None):
         remote_train_dir = directory_dict["remote_train_dir"]
 
     #Construct absolute paths for files
@@ -64,23 +64,23 @@ def run_pacemaker(InputData: DataReader, **kwargs):
         
     elif (flyingpace.fpio.calc_ongoing_in_local_dir(local_train_dir)):
         log.warning(f"There is an ongoing calculation in {local_train_dir}, is now waiting for it to finish")
-        flyingpace.fpio.wait_for_calc_done(local_train_dir, gpu_connection)
+        flyingpace.fpio.wait_for_calc_done(local_train_dir, train_connection)
         local(f"rm -rf {os.path.join(local_train_dir, 'CALC_ONGOING')}")
         return
 
-    if (gpu_connection != None):
+    if (train_connection != None):
         
-        if (flyingpace.fpio.calc_done_in_remote_dir(remote_train_dir, gpu_connection)):
+        if (flyingpace.fpio.calc_done_in_remote_dir(remote_train_dir, train_connection)):
             log.warning(f"There already is a completed calculation in {remote_train_dir}")
             log.warning(f"Copying results to {local_train_dir}")
-            flyingpace.sshutils.get_dir_as_archive(local_train_dir, remote_train_dir, gpu_connection)
+            flyingpace.sshutils.get_dir_as_archive(local_train_dir, remote_train_dir, train_connection)
             return
         
-        elif (flyingpace.fpio.calc_ongoing_in_remote_dir(remote_train_dir, gpu_connection)):
+        elif (flyingpace.fpio.calc_ongoing_in_remote_dir(remote_train_dir, train_connection)):
             log.warning(f"There is an ongoing calculation in {remote_train_dir}, is now waiting for it to finish")
-            flyingpace.fpio.wait_for_calc_done(remote_train_dir, gpu_connection)
-            gpu_connection.run(f"rm -rf {os.path.join(remote_train_dir, 'CALC_ONGOING')}", hide='both')
-            flyingpace.sshutils.get_dir_as_archive(local_train_dir, remote_train_dir, gpu_connection)
+            flyingpace.fpio.wait_for_calc_done(remote_train_dir, train_connection)
+            train_connection.run(f"rm -rf {os.path.join(remote_train_dir, 'CALC_ONGOING')}", hide='both')
+            flyingpace.sshutils.get_dir_as_archive(local_train_dir, remote_train_dir, train_connection)
             return
     
     #Check if all nessesary files exist
@@ -108,28 +108,28 @@ def run_pacemaker(InputData: DataReader, **kwargs):
     flyingpace.fpio.generate_pace_input(pickle_file_path, directory_dict, InputData)
 
     #Copy local_train_dir to remote_train_dir
-    if (gpu_connection != None):
-        flyingpace.sshutils.put_dir_as_archive(local_train_dir, remote_train_dir, gpu_connection)
+    if (train_connection != None):
+        flyingpace.sshutils.put_dir_as_archive(local_train_dir, remote_train_dir, train_connection)
 
     #Start pacemaker run
-    if (gpu_connection == None):
+    if (train_connection == None):
         log.info("Starting pacemaker run, is now waiting for it to finish")
         local(f"touch {os.path.join(local_train_dir, 'CALC_ONGOING')}")
         local(f"cd {local_train_dir} && sbatch {os.path.basename(run_script_pacemaker_path)}")
-        flyingpace.fpio.wait_for_calc_done(local_train_dir, gpu_connection)
+        flyingpace.fpio.wait_for_calc_done(local_train_dir, train_connection)
         local(f"rm -rf {os.path.join(local_train_dir, 'CALC_ONGOING')}")
-    elif (gpu_connection != None):
+    elif (train_connection != None):
         log.info("Starting pacemaker run, is now waiting for it to finish")
-        gpu_connection.run(f"touch {os.path.join(remote_train_dir, 'CALC_ONGOING')}", hide='both')
-        with gpu_connection.cd(remote_train_dir):
-            gpu_connection.run(f"sbatch {os.path.basename(run_script_pacemaker_path)}", hide='both')
-        flyingpace.fpio.wait_for_calc_done(remote_train_dir, gpu_connection)
-        gpu_connection.run(f"rm -rf {os.path.join(remote_train_dir, 'CALC_ONGOING')}", hide='both')
+        train_connection.run(f"touch {os.path.join(remote_train_dir, 'CALC_ONGOING')}", hide='both')
+        with train_connection.cd(remote_train_dir):
+            train_connection.run(f"sbatch {os.path.basename(run_script_pacemaker_path)}", hide='both')
+        flyingpace.fpio.wait_for_calc_done(remote_train_dir, train_connection)
+        train_connection.run(f"rm -rf {os.path.join(remote_train_dir, 'CALC_ONGOING')}", hide='both')
     log.info("pacemaker run has finished")
 
     #Copy results to local folder
-    if (gpu_connection != None):
-        flyingpace.sshutils.get_dir_as_archive(local_train_dir, remote_train_dir, gpu_connection)
+    if (train_connection != None):
+        flyingpace.sshutils.get_dir_as_archive(local_train_dir, remote_train_dir, train_connection)
 
     return
 

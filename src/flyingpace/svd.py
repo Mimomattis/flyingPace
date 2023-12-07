@@ -25,7 +25,7 @@ def run_aimd(InputData: DataReader):
 
     directory_dict = InputData.directory_dict
 
-    cpu_connection = InputData.cpu_connection
+    dft_connection = InputData.dft_connection
 
     #Read what is needed from dft_dict
     assert isinstance(dft_dict, dict)
@@ -56,7 +56,7 @@ def run_aimd(InputData: DataReader):
     assert isinstance(directory_dict, dict)
     local_working_dir = directory_dict["local_working_dir"]
     local_dft_dir = directory_dict["local_dft_dir"]
-    if (cpu_connection != None):
+    if (dft_connection != None):
         remote_dft_dir = directory_dict["remote_dft_dir"]
 
     #Construct absolute paths for files
@@ -70,23 +70,23 @@ def run_aimd(InputData: DataReader):
         
     elif (flyingpace.fpio.calc_ongoing_in_local_dir(local_dft_dir)):
         log.warning(f"There is an ongoing calculation in {local_dft_dir}, is now waiting for it to finish")
-        flyingpace.fpio.wait_for_calc_done(local_dft_dir, cpu_connection)
+        flyingpace.fpio.wait_for_calc_done(local_dft_dir, dft_connection)
         local(f"rm -rf {os.path.join(local_dft_dir, 'CALC_ONGOING')}")
         return
 
-    if (cpu_connection != None):
+    if (dft_connection != None):
         
-        if (flyingpace.fpio.calc_done_in_remote_dir(remote_dft_dir, cpu_connection)):
+        if (flyingpace.fpio.calc_done_in_remote_dir(remote_dft_dir, dft_connection)):
             log.warning(f"There already is a completed calculation in {remote_dft_dir}")
             log.warning(f"Copying results to {local_dft_dir}")
-            flyingpace.sshutils.get_dir_as_archive(local_dft_dir, remote_dft_dir, cpu_connection)
+            flyingpace.sshutils.get_dir_as_archive(local_dft_dir, remote_dft_dir, dft_connection)
             return
         
-        elif (flyingpace.fpio.calc_ongoing_in_remote_dir(remote_dft_dir, cpu_connection)):
+        elif (flyingpace.fpio.calc_ongoing_in_remote_dir(remote_dft_dir, dft_connection)):
             log.warning(f"There is an ongoing calculation in {remote_dft_dir}, is now waiting for it to finish")
-            flyingpace.fpio.wait_for_calc_done(remote_dft_dir, cpu_connection)
-            cpu_connection.run(f"rm -rf {os.path.join(remote_dft_dir, 'CALC_ONGOING')}", hide='both')
-            flyingpace.sshutils.get_dir_as_archive(local_dft_dir, remote_dft_dir, cpu_connection)
+            flyingpace.fpio.wait_for_calc_done(remote_dft_dir, dft_connection)
+            dft_connection.run(f"rm -rf {os.path.join(remote_dft_dir, 'CALC_ONGOING')}", hide='both')
+            flyingpace.sshutils.get_dir_as_archive(local_dft_dir, remote_dft_dir, dft_connection)
             return
     
     #Check if all nessesary files exist
@@ -116,28 +116,28 @@ def run_aimd(InputData: DataReader):
     local(f"cp {aimd_input_file_path} {run_script_aimd_path} {local_dft_dir}")
     
     #Copy local_dft_dir to remote_dft_dir
-    if (cpu_connection != None):
-        flyingpace.sshutils.put_dir_as_archive(local_dft_dir, remote_dft_dir, cpu_connection)
+    if (dft_connection != None):
+        flyingpace.sshutils.put_dir_as_archive(local_dft_dir, remote_dft_dir, dft_connection)
 
     #Start AIMD run
-    if (cpu_connection == None):
+    if (dft_connection == None):
         log.info("Starting AIMD run, is now waiting for it to finish")
         local(f"touch {os.path.join(local_dft_dir, 'CALC_ONGOING')}")
         local(f"cd {local_dft_dir} && sbatch {os.path.basename(run_script_aimd_path)}")
-        flyingpace.fpio.wait_for_calc_done(local_dft_dir, cpu_connection)
+        flyingpace.fpio.wait_for_calc_done(local_dft_dir, dft_connection)
         local(f"rm -rf {os.path.join(local_dft_dir, 'CALC_ONGOING')}")
-    elif (cpu_connection != None):
+    elif (dft_connection != None):
         log.info("Starting AIMD run, is now waiting for it to finish")
-        cpu_connection.run(f"touch {os.path.join(remote_dft_dir, 'CALC_ONGOING')}", hide='both')
-        with cpu_connection.cd(remote_dft_dir):
-            cpu_connection.run(f"sbatch {os.path.basename(run_script_aimd_path)}", hide='both')
-        flyingpace.fpio.wait_for_calc_done(remote_dft_dir, cpu_connection)
-        cpu_connection.run(f"rm -rf {os.path.join(local_dft_dir, 'CALC_ONGOING')}", hide='both')
+        dft_connection.run(f"touch {os.path.join(remote_dft_dir, 'CALC_ONGOING')}", hide='both')
+        with dft_connection.cd(remote_dft_dir):
+            dft_connection.run(f"sbatch {os.path.basename(run_script_aimd_path)}", hide='both')
+        flyingpace.fpio.wait_for_calc_done(remote_dft_dir, dft_connection)
+        dft_connection.run(f"rm -rf {os.path.join(local_dft_dir, 'CALC_ONGOING')}", hide='both')
     log.info("AIMD run has finished")
 
     #Copy results to local folder
-    if (cpu_connection != None):
-        flyingpace.sshutils.get_dir_as_archive(local_dft_dir, remote_dft_dir, cpu_connection)
+    if (dft_connection != None):
+        flyingpace.sshutils.get_dir_as_archive(local_dft_dir, remote_dft_dir, dft_connection)
 
     return
 
@@ -154,7 +154,7 @@ def run_scf_from_exploration(InputData: DataReader):
 
     directory_dict = InputData.directory_dict
 
-    cpu_connection = InputData.cpu_connection
+    dft_connection = InputData.dft_connection
 
     #Read what is needed from dft_dict
     assert isinstance(dft_dict, dict)
@@ -182,7 +182,7 @@ def run_scf_from_exploration(InputData: DataReader):
     local_working_dir = directory_dict["local_working_dir"]
     local_dft_dir = directory_dict["local_dft_dir"]
     local_scf_results_dir = os.path.join(local_dft_dir, "scf_results")
-    if (cpu_connection != None):
+    if (dft_connection != None):
         remote_dft_dir = directory_dict["remote_dft_dir"]
         remote_scf_results_dir = os.path.join(remote_dft_dir, "scf_results")
     #Construct absolute paths for files
@@ -191,31 +191,31 @@ def run_scf_from_exploration(InputData: DataReader):
     #Check if there is a completed or ongoing calculation in local_dft_dir or remote_dft_dir
     if (flyingpace.fpio.calc_done_in_local_dir(local_dft_dir)):
         log.warning(f"There already is a completed calculation in {local_dft_dir}")
-        flyingpace.sshutils.gather_files(local_dft_dir, local_scf_results_dir, "scf", ["OUT"], cpu_connection)
+        flyingpace.sshutils.gather_files(local_dft_dir, local_scf_results_dir, "scf", ["OUT"], dft_connection)
         return
         
     elif (flyingpace.fpio.calc_ongoing_in_local_dir(local_dft_dir)):
         log.warning(f"There is an ongoing calculation in {local_dft_dir}, is now waiting for it to finish")
-        flyingpace.fpio.wait_for_calc_done(local_dft_dir, cpu_connection)
+        flyingpace.fpio.wait_for_calc_done(local_dft_dir, dft_connection)
         local(f"rm -rf {os.path.join(local_dft_dir, 'CALC_ONGOING')}")
-        flyingpace.sshutils.gather_files(local_dft_dir, local_scf_results_dir, "scf", ["OUT"], cpu_connection)
+        flyingpace.sshutils.gather_files(local_dft_dir, local_scf_results_dir, "scf", ["OUT"], dft_connection)
         return
 
-    if (cpu_connection != None):
+    if (dft_connection != None):
         
-        if (flyingpace.fpio.calc_done_in_remote_dir(remote_dft_dir, cpu_connection)):
+        if (flyingpace.fpio.calc_done_in_remote_dir(remote_dft_dir, dft_connection)):
             log.warning(f"There already is a completed calculation in {remote_dft_dir}")
             log.warning(f"Copying results to {local_dft_dir}")
-            flyingpace.sshutils.gather_files(remote_dft_dir, remote_scf_results_dir, "scf", ["OUT"], cpu_connection)
-            flyingpace.sshutils.get_dir_as_archive(local_scf_results_dir, remote_scf_results_dir, cpu_connection)
+            flyingpace.sshutils.gather_files(remote_dft_dir, remote_scf_results_dir, "scf", ["OUT"], dft_connection)
+            flyingpace.sshutils.get_dir_as_archive(local_scf_results_dir, remote_scf_results_dir, dft_connection)
             return
         
-        elif (flyingpace.fpio.calc_ongoing_in_remote_dir(remote_dft_dir, cpu_connection)):
+        elif (flyingpace.fpio.calc_ongoing_in_remote_dir(remote_dft_dir, dft_connection)):
             log.warning(f"There is an ongoing calculation in {remote_dft_dir}, is now waiting for it to finish")
-            flyingpace.fpio.wait_for_calc_done(remote_dft_dir, cpu_connection)
-            cpu_connection.run(f"rm -rf {os.path.join(remote_dft_dir, 'CALC_ONGOING')}", hide='both')
-            flyingpace.sshutils.gather_files(remote_dft_dir, remote_scf_results_dir, "scf", ["OUT"], cpu_connection)
-            flyingpace.sshutils.get_dir_as_archive(local_scf_results_dir, remote_scf_results_dir, cpu_connection)
+            flyingpace.fpio.wait_for_calc_done(remote_dft_dir, dft_connection)
+            dft_connection.run(f"rm -rf {os.path.join(remote_dft_dir, 'CALC_ONGOING')}", hide='both')
+            flyingpace.sshutils.gather_files(remote_dft_dir, remote_scf_results_dir, "scf", ["OUT"], dft_connection)
+            flyingpace.sshutils.get_dir_as_archive(local_scf_results_dir, remote_scf_results_dir, dft_connection)
             return
     
     #Check if all nessesary files exist
@@ -235,31 +235,31 @@ def run_scf_from_exploration(InputData: DataReader):
     flyingpace.fpio.prepare_scf_calcs_from_pickle(InputData)
 
     #Copy local_dft_dir to remote_dft_dir
-    if (cpu_connection != None):
-        flyingpace.sshutils.put_dir_as_archive(local_dft_dir, remote_dft_dir, cpu_connection)
+    if (dft_connection != None):
+        flyingpace.sshutils.put_dir_as_archive(local_dft_dir, remote_dft_dir, dft_connection)
 
     #Start SCF runs
-    if (cpu_connection == None):
+    if (dft_connection == None):
         log.info("Starting SCF runs, is now waiting for them to finish")
         local(f"touch {os.path.join(local_dft_dir, 'CALC_ONGOING')}")
         local(f"cd {local_dft_dir} && sbatch {os.path.basename(run_script_scf_path)}")
-        flyingpace.fpio.wait_for_calc_done(local_dft_dir, cpu_connection)
+        flyingpace.fpio.wait_for_calc_done(local_dft_dir, dft_connection)
         local(f"rm -rf {os.path.join(local_dft_dir, 'CALC_ONGOING')}")
-        flyingpace.sshutils.gather_files(local_dft_dir, local_scf_results_dir, "scf", ["OUT"], cpu_connection)
-    elif (cpu_connection != None):
+        flyingpace.sshutils.gather_files(local_dft_dir, local_scf_results_dir, "scf", ["OUT"], dft_connection)
+    elif (dft_connection != None):
         log.info("Starting SCF runs, is now waiting for them to finish")
-        cpu_connection.run(f"touch {os.path.join(remote_dft_dir, 'CALC_ONGOING')}", hide='both')
-        with cpu_connection.cd(remote_dft_dir):
-            cpu_connection.run(f"sbatch {os.path.basename(run_script_scf_path)}", hide='both')
-        flyingpace.fpio.wait_for_calc_done(remote_dft_dir, cpu_connection)
-        cpu_connection.run(f"rm -rf {os.path.join(local_dft_dir, 'CALC_ONGOING')}", hide='both')
-        flyingpace.sshutils.gather_files(remote_dft_dir, local_scf_results_dir, "scf", ["OUT"], cpu_connection)
+        dft_connection.run(f"touch {os.path.join(remote_dft_dir, 'CALC_ONGOING')}", hide='both')
+        with dft_connection.cd(remote_dft_dir):
+            dft_connection.run(f"sbatch {os.path.basename(run_script_scf_path)}", hide='both')
+        flyingpace.fpio.wait_for_calc_done(remote_dft_dir, dft_connection)
+        dft_connection.run(f"rm -rf {os.path.join(local_dft_dir, 'CALC_ONGOING')}", hide='both')
+        flyingpace.sshutils.gather_files(remote_dft_dir, local_scf_results_dir, "scf", ["OUT"], dft_connection)
     log.info("SCF runs have finished")
 
     
     
-    if (cpu_connection != None):
-        flyingpace.sshutils.get_dir_as_archive(local_scf_results_dir, remote_scf_results_dir, cpu_connection)
+    if (dft_connection != None):
+        flyingpace.sshutils.get_dir_as_archive(local_scf_results_dir, remote_scf_results_dir, dft_connection)
    
 
 

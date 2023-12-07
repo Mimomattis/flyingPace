@@ -69,24 +69,29 @@ def main(args):
             raise ValueError("No 'startFile' provided in input file, please specify it")
     
     #TODO:Is there a better way to do this, maybe activate the cond env on the clusters
-    if "CPUPython" in manager_dict:
-        cpu_python_interpreter = manager_dict["CPUPython"]
-        log.info(f"CPU python interpreter: {cpu_python_interpreter}")
+    if "DFTPython" in manager_dict:
+        dft_python_interpreter = manager_dict["DFTPython"]
+        log.info(f"Python interpreter on the DFTHost: {dft_python_interpreter}")
     else:
-        log.warning("No 'CPUPython' provided in input file, please specify it")
-        raise ValueError("No 'CPUPython' provided in input file, please specify it")
+        log.warning("No 'DFTPython' provided in input file, please specify it")
+        raise ValueError("No 'DFTPython' provided in input file, please specify it")
     
-    if "GPUPython" in manager_dict:
-        gpu_python_interpreter = manager_dict["GPUPython"]
-        log.info(f"GPU python interpreter: {gpu_python_interpreter}")
+    if "TrainPython" in manager_dict:
+        train_python_interpreter = manager_dict["TrainPython"]
+        log.info(f"Python interpreter on the TrainHost: {train_python_interpreter}")
     else:
-        log.warning("No 'GPUPython' provided in input file, please specify it")
-        raise ValueError("No 'GPUPython' provided in input file, please specify it")
+        log.warning("No 'TrainPython' provided in input file, please specify it")
+        raise ValueError("No 'TrainPython' provided in input file, please specify it")
+    
+    if "ExplorationPython" in manager_dict:
+        exploration_python_interpreter = manager_dict["ExplorationPython"]
+        log.info(f"Python interpreter on the ExplorationHost: {exploration_python_interpreter}")
+    else:
+        log.warning("No 'ExplorationPython' provided in input file, please specify it")
+        raise ValueError("No 'ExplorationPython' provided in input file, please specify it")
 
     #Establish the ssh connections based on the input parameters
-    cpu_connection, gpu_connection = flyingpace.sshutils.initialize_connections(InputData)
-    InputData.cpu_connection = cpu_connection
-    InputData.gpu_connection = gpu_connection
+    flyingpace.sshutils.initialize_connections(InputData)
 
     if (start_gen == 0):
 

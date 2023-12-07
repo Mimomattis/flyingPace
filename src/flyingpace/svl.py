@@ -30,7 +30,7 @@ def run_explorative_md(InputData: DataReader):
 
     directory_dict = InputData.directory_dict
 
-    cpu_connection = InputData.cpu_connection
+    exploration_connection = InputData.exploration_connection
 
     #Read what is needed from exploration_dict
     assert isinstance(exploration_dict, dict)    
@@ -45,7 +45,7 @@ def run_explorative_md(InputData: DataReader):
     assert isinstance(directory_dict, dict)
     local_working_dir = directory_dict["local_working_dir"]
     local_exploration_dir = directory_dict["local_exploration_dir"]
-    if (cpu_connection != None):
+    if (exploration_connection != None):
         remote_exploration_dir = directory_dict["remote_exploration_dir"]
     #Construct absolute paths for files
     run_script_exploration_path = os.path.join(local_working_dir, run_script_exploration)
@@ -61,23 +61,23 @@ def run_explorative_md(InputData: DataReader):
         return
     elif (flyingpace.fpio.calc_ongoing_in_local_dir(local_exploration_dir)):
         log.warning(f"There is an ongoing calculation in {local_exploration_dir}, is now waiting for it to finish")
-        flyingpace.fpio.wait_for_calc_done(local_exploration_dir, cpu_connection)
+        flyingpace.fpio.wait_for_calc_done(local_exploration_dir, exploration_connection)
         local(f"rm -rf {os.path.join(local_exploration_dir, 'CALC_ONGOING')}")
         return
 
-    if (cpu_connection != None):
+    if (exploration_connection != None):
         
-        if (flyingpace.fpio.calc_done_in_remote_dir(remote_exploration_dir, cpu_connection)):
+        if (flyingpace.fpio.calc_done_in_remote_dir(remote_exploration_dir, exploration_connection)):
             log.warning(f"There already is a completed calculation in {remote_exploration_dir}")
             log.warning(f"Copying results to {remote_exploration_dir}")
-            flyingpace.sshutils.get_dir_as_archive(local_exploration_dir, remote_exploration_dir, cpu_connection)
+            flyingpace.sshutils.get_dir_as_archive(local_exploration_dir, remote_exploration_dir, exploration_connection)
             return
         
-        elif (flyingpace.fpio.calc_ongoing_in_remote_dir(remote_exploration_dir, cpu_connection)):
+        elif (flyingpace.fpio.calc_ongoing_in_remote_dir(remote_exploration_dir, exploration_connection)):
             log.warning(f"There is an ongoing calculation in {remote_exploration_dir}, is now waiting for it to finish")
-            flyingpace.fpio.wait_for_calc_done(remote_exploration_dir, cpu_connection)
-            cpu_connection.run(f"rm -rf {os.path.join(remote_exploration_dir, 'CALC_ONGOING')}", hide='both')
-            flyingpace.sshutils.get_dir_as_archive(local_exploration_dir, remote_exploration_dir, cpu_connection)
+            flyingpace.fpio.wait_for_calc_done(remote_exploration_dir, exploration_connection)
+            exploration_connection.run(f"rm -rf {os.path.join(remote_exploration_dir, 'CALC_ONGOING')}", hide='both')
+            flyingpace.sshutils.get_dir_as_archive(local_exploration_dir, remote_exploration_dir, exploration_connection)
             return
     
     #Check if all nessesary files exist
@@ -103,28 +103,28 @@ def run_explorative_md(InputData: DataReader):
     flyingpace.fpio.generate_lammps_input(InputData)
 
     #Copy local_exploration_dir to remote_exploration_dir
-    if (cpu_connection != None):
-        flyingpace.sshutils.put_dir_as_archive(local_exploration_dir, remote_exploration_dir, cpu_connection)
+    if (exploration_connection != None):
+        flyingpace.sshutils.put_dir_as_archive(local_exploration_dir, remote_exploration_dir, exploration_connection)
 
     #Start Exploration_run run
-    if (cpu_connection == None):
+    if (exploration_connection == None):
         log.info("Starting exploration run, is now waiting for it to finish")
         local(f"touch {os.path.join(local_exploration_dir, 'CALC_ONGOING')}")
         local(f"cd {local_exploration_dir} && sbatch {os.path.basename(run_script_exploration_path)}")
-        flyingpace.fpio.wait_for_calc_done(local_exploration_dir, cpu_connection)
+        flyingpace.fpio.wait_for_calc_done(local_exploration_dir, exploration_connection)
         local(f"rm -rf {os.path.join(local_exploration_dir, 'CALC_ONGOING')}")
-    elif (cpu_connection != None):
+    elif (exploration_connection != None):
         log.info("Starting exploration run, is now waiting for it to finish")
-        cpu_connection.run(f"touch {os.path.join(remote_exploration_dir, 'CALC_ONGOING')}", hide='both')
-        with cpu_connection.cd(remote_exploration_dir):
-            cpu_connection.run(f"sbatch {os.path.basename(run_script_exploration_path)}", hide='both')
-        flyingpace.fpio.wait_for_calc_done(remote_exploration_dir, cpu_connection)
-        cpu_connection.run(f"rm -rf {os.path.join(remote_exploration_dir, 'CALC_ONGOING')}", hide='both')
+        exploration_connection.run(f"touch {os.path.join(remote_exploration_dir, 'CALC_ONGOING')}", hide='both')
+        with exploration_connection.cd(remote_exploration_dir):
+            exploration_connection.run(f"sbatch {os.path.basename(run_script_exploration_path)}", hide='both')
+        flyingpace.fpio.wait_for_calc_done(remote_exploration_dir, exploration_connection)
+        exploration_connection.run(f"rm -rf {os.path.join(remote_exploration_dir, 'CALC_ONGOING')}", hide='both')
     log.info("Exploration run has finished")
 
     #Copy results to local folder
-    if (cpu_connection != None):
-        flyingpace.sshutils.get_dir_as_archive(local_exploration_dir, remote_exploration_dir, cpu_connection)
+    if (exploration_connection != None):
+        flyingpace.sshutils.get_dir_as_archive(local_exploration_dir, remote_exploration_dir, exploration_connection)
 
     return
 
