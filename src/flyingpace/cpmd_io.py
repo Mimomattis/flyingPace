@@ -212,6 +212,7 @@ def read_cpmd_scf(outfile_path: str):
     cpmd_cell = "*** SUPERCELL ***"
     cpmd_pos_force = "FINAL RESULTS"
     cpmd_total_energy = "TOTAL ENERGY ="
+    cpmd_program_ended = "PROGRAM CPMD ENDED AT:"
 
     indexes = {
         cpmd_no_convergence: [],
@@ -219,12 +220,26 @@ def read_cpmd_scf(outfile_path: str):
         cpmd_cell: [],
         cpmd_pos_force: [],
         cpmd_total_energy: [],
+        cpmd_program_ended: [],
     }
 
     for idx, line in enumerate(cpmd_lines):
         for identifier in indexes:
             if identifier in line:
                 indexes[identifier].append(idx)
+
+    #returns false if indexes[cpmd_program_ended] is empty
+    # -> if list not empty -> returns true -> programm has ended succesfully
+    # -> if list empty -> returns false -> programm has not ended succesfully
+    if not indexes[cpmd_program_ended]:
+        convergence = False
+        symbols = None
+        cell = None
+        positions = None
+        forces = None
+        energy = None
+
+        return convergence, symbols, cell, positions, forces, energy 
 
     #returns false if indexes[cpmd_no_convergence] is empty
     # -> if list not empty -> returns true -> convergence = False
@@ -236,6 +251,9 @@ def read_cpmd_scf(outfile_path: str):
         positions = None
         forces = None
         energy = None
+
+        return convergence, symbols, cell, positions, forces, energy 
+    
     else:
         convergence = True
 
@@ -267,8 +285,25 @@ def read_cpmd_scf(outfile_path: str):
     forces = []
     pos_force_idx = indexes[cpmd_pos_force][0]+5
     for i in range(number_of_atoms):
-        position_line = cpmd_lines[pos_force_idx].strip().split()[2:5]
-        force_line = cpmd_lines[pos_force_idx].strip().split()[5:8]
+        #The parsing of positions is tricky, because somethimes CPMD writes '-' signs, that connect two coordinates,
+        #making simple parsing like for the forces not possible
+        raw_position_line = cpmd_lines[pos_force_idx].strip().split()[2:][:-3] #Get everything but the first two and last three elements of list
+        position_line = []
+    
+        for coord in raw_position_line:
+            coords = coord.split('-')
+            if len(coords) == 4:#All three numbers are negative, the first element is ''
+                for real_coord in coords[1:]:
+                    position_line.append(float('-' + real_coord))
+            elif len(coords) < 4 and coords[0] == '':#Only the case if the first number is negative, it will be split in '-' and '{number}' 
+                for real_coord in coords[1:]:
+                    position_line.append(float('-' + real_coord))
+            else:#All following numbers will be negative
+                position_line.append(float(coords[0]))
+                for real_coord in coords[1:]:
+                    position_line.append(float('-' + real_coord))
+            
+        force_line = cpmd_lines[pos_force_idx].strip().split()[-3:]
         positions.append(position_line)
         forces.append(force_line)
         pos_force_idx += 1
