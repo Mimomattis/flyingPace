@@ -74,5 +74,5 @@ fit:
 #################################################################
 backend:
   evaluator: tensorpot
-  batch_size: 100
+  batch_size: {{BATCHSIZE}}
   display_step: 50

@@ -206,6 +206,15 @@ def generate_pace_input(dataset_file_path: str, directory_dict: dict, InputData:
         log.warning("No 'maxNumIterations' provided in input file, the default is 500")
         max_num_iter = 500
 
+    if "batchSize" in pacemaker_dict:
+        batch_size = pacemaker_dict["batchSize"]
+        log.info(f"Batch size for pacemaker run: {batch_size}")
+    else:
+        log.warning("No 'batchSize' provided in input file, the default is 500")
+        max_num_iter = 500
+
+    
+
     #Get relevant directories from directory_dict
     assert isinstance(directory_dict, dict)
     local_train_dir = directory_dict["local_train_dir"]
@@ -224,7 +233,6 @@ def generate_pace_input(dataset_file_path: str, directory_dict: dict, InputData:
         sys.exit(1)
 
     log.info(f"Number of elements: {len(elements)}")
-    log.info("Elements: {elements}")
 
     #Weighting scheme
     default_energy_based_weighting = """{ type: EnergyBasedWeightingPolicy, DElow: 1.0, 
@@ -251,6 +259,7 @@ def generate_pace_input(dataset_file_path: str, directory_dict: dict, InputData:
                                               f"number_of_functions_per_element: {num_functions}")
     input_yaml_text = input_yaml_text.replace("{{KAPPA}}", str(kappa))
     input_yaml_text = input_yaml_text.replace("{{MAXITER}}", str(max_num_iter))
+    input_yaml_text = input_yaml_text.replace("{{BATCHSIZE}}", str(batch_size))
 
     if weighting:
         input_yaml_text = input_yaml_text.replace("{{WEIGHTING}}", f"weighting: {weighting}")
