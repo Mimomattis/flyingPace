@@ -7,25 +7,35 @@ manager:
   systemName: 'Cs2AgBiCl6'
   startFile: 'Cs2AgBiCl6.data' 
 
-  CPUHost: 'ccc160'
-  CPUUser: 'mgossler'
+  DFTHost: 'host'
+  DFTUser: 'user'
 
-  GPUHost: 'tinyx'
-  GPUUser: 'nfcc010h'
-  GPUJumpHost: 'cshpc.rrze.fau.de'
+  ExplorationHost: 'host'
+  ExplorationUser: 'user'
 
-  localWorkingDir: '/ccc160/mgossler/phd/work/project-ace/test_directory/Cs2AgBiCl6'
-  CPUWorkingDir: '/ccc160/mgossler/phd/work/project-ace/test_directory/Cs2AgBiCl6'
-  GPUWorkingDir: '/home/titan/nfcc/nfcc010h/work/project-ace/test_directory/Cs2AgBiCl6'
+  TrainHost: 'host'
+  TrainUser: 'user'
+  TrainJumpHost: 'jumpUser'
 
-  CPUPython: '/ccc160/mgossler/bin/miniforge3/envs/ace/bin/python'
-  GPUPython: '/home/titan/nfcc/nfcc010h/software/privat/conda/envs/ace/bin/python3'
-  CPUpaceDir: '/ccc160/mgossler/bin/miniforge3/envs/ace/bin/'
-  GPUpaceDir: '/home/titan/nfcc/nfcc010h/software/privat/conda/envs/ace/bin/'
+  localWorkingDir: 'dir'
+
+  DFTWorkingDir: 'dir'
+  ExplorationWorkingDir: 'dir'
+  TrainWorkingDir: 'dir'
+
+  DFTPython: '/path/to/python'
+  ExplorationPython: '/path/to/python'
+  TrainPython: '/path/to/python'
 
 pacemaker:
 
-  referenceEnergyMode: 'auto'
+  referenceEnergyMode: 'singleAtomEnergies'
+  referenceEnergies:
+
+    Ag: -1032.2327445859873
+    Bi: -1920.606558613386
+    Cl: -405.325758322503
+    Cs: -556.4155098079568
 
   pacemakerRunScript: 'runbatch-ace'
   testSize: 0
@@ -33,7 +43,7 @@ pacemaker:
   cutoff: 7.0
   weighting: 'uniform'
   kappa: 0.3
-  maxNumIterations : 100
+  maxNumIterations : 500
 
 exploration:
 

@@ -7,31 +7,8 @@
 #SBATCH --nodes=1
 #SBATCH --partition=a100
 #SBATCH --gres=gpu:a100:1
-#SBATCH --ntasks-per-node=32
-#SBATCH --cpus-per-task=1
-#
-#SBATCH --distribution=block:block:block
-##SBATCH --hint=nomultithread
-#SBATCH --export=none
-#SBATCH --get-user-env
-#
-# Partitions:
-##SBATCH --gres=gpu:a100:<no_of_gpus> --partition=a100 : nvidia a100/40GB RAM/32CPU nodes per GPU (#SBATCH --ntasks-per-node=32)
-##SBATCH --gres=gpu:v100:<no_of_gpus> --partition=v100 : nvidia v100/32GB RAM/8CPU nodes per GPU #SBATCH --ntasks-per-node=8
-##SBATCH --gres=gpu:<no_of_gpus> --partition=rtx3080 : nvidia rtx3080/10GB RAM/8CPU nodes per GPU #SBATCH --ntasks-per-node=8
-##
-## --job-name=runbatch  : name of the run
-## --time=23:59:00      : walltime for the run
-## --nodes=4            : number of nodes
-## --ntasks-per-node=20 : number of MPI processes per node
-## --cpus-per-task=1    : number of OMP tasks per MPI process
-##
-##SBATCH --dependency=afterok:<jobid>
-#
-# NOTE: Always keep 'cpus-per-task=1'. The 'ntasks-per-node' depends
-#       on the chosen queue and has to be equal 'ppn'. You have to use
-#       the correct number of cores per node, otherwise your job will
-#       be rejected by the batch system.
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=32
 #
 #-----------------------------------------------------------------------
   input="input.yaml"
@@ -62,11 +39,7 @@
 module load python
 conda activate ace
 #
-  export OMP_NUM_THREADS=1
-  export MKL_NUM_THREADS=1
-#  unset I_MPI_PMI_LIBRARY
-#  export I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0
-# --report-bindings (for srun)
+  export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
   export OMPI_MCA_hwloc_base_report_bindings=true
 #
 # copy to local workdir:

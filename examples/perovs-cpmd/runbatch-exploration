@@ -14,26 +14,6 @@
 #SBATCH --export=none
 #SBATCH --get-user-env
 #
-# Partitions:
-##SBATCH --partition=devel      : meggie   ppn=20
-##SBATCH --partition=work       : meggie   ppn=20
-##SBATCH --partition=singlenode : fritz    ppn=72
-##SBATCH --partition=multinode  : fritz    ppn=72
-##
-## --job-name=runbatch  : name of the run
-## --time=23:59:00      : walltime for the run
-## --nodes=4            : number of nodes
-## --ntasks-per-node=20 : number of MPI processes per node
-## --cpus-per-task=1    : number of OMP tasks per MPI process
-##
-##SBATCH --dependency=afterok:<jobid>
-#
-# NOTE: Always keep 'cpus-per-task=1'. The 'ntasks-per-node' depends
-#       on the chosen queue and has to be equal 'ppn'. You have to use
-#       the correct number of cores per node, otherwise your job will
-#       be rejected by the batch system.
-#
-##SBATCH --ntasks=32
 #-----------------------------------------------------------------------
   input="INP-lammps"
   output="OUT"
@@ -70,17 +50,13 @@ module load tbb/latest
 #
 # set path for LAMMPS executable
 #
-  export LAMMPS="/ccc160/mgossler/bin/lammps_ace.x"
+  export LAMMPS="/path/to/lmp/"
   echo ${LAMMPS}
   export PAR_RUN="srun"
 #  export PAR_RUN="mpirun"
   which ${PAR_RUN}
 #
-  export OMP_NUM_THREADS=1
-  export MKL_NUM_THREADS=1
-#  unset I_MPI_PMI_LIBRARY
-#  export I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0
-# --report-bindings (for srun)
+  export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
   export OMPI_MCA_hwloc_base_report_bindings=true
 #
 # copy to local workdir:

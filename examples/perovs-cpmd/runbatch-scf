@@ -14,33 +14,6 @@
 #SBATCH --export=none
 #SBATCH --get-user-env
 #
-# Partitions:
-##SBATCH --partition=singlenode : fritz    ppn=72
-##SBATCH --partition=multinode  : fritz    ppn=72
-#
-## --job-name=runbatch  : name of the run
-## --time=23:59:00      : walltime for the run
-## --nodes=4            : number of nodes
-## --ntasks-per-node=2  : number of MPI processes per node
-## --cpus-per-task=8    : number of OMP tasks per MPI process
-##
-##SBATCH --dependency=afterok:<jobid>
-#
-# NOTE: The product of 'ntasks-per-node' times 'cpus-per-task' has
-#       to be equal to the number of cores per node (72 for fritz).
-#       Typical choices are:
-#
-#        4 MPI proc/node      6 MPI proc/node      8 MPI proc/node
-#       --cpus-per-task=18   --cpus-per-task=12   --cpus-per-task=9
-#
-# [ 'nodes' and 'ntasks-per-node' can be replaced by 'ntasks' which
-#   is the product of both: --ntasks= nodes * ntasks-per-node ]
-#
-##SBATCH --ntasks=32
-##SBATCH --ntasks-per-core=1
-##SBATCH --threads-per-core=1
-##SBATCH --mem=63000
-##SBATCH --hint=compute_bound
 #-----------------------------------------------------------------------
   input="INP"
   output="OUT"
@@ -76,11 +49,11 @@
 #
 # set path for pseudopotential library and CPMD executable
 #
-  export CPMD="/ccc160/bmeyer/bin/cpmd-4.3-tobias.x"
+  export CPMD="/path/to/cpmd"
   export SSHFS="/usr/bin/sshfs"
   export PAR_RUN="srun"
 #  export PAR_RUN="mpirun"
-  export PP_LIBRARY_PATH="/ccc160/bmeyer/pot.cpmd/functional-PBEsol/"
+  export PP_LIBRARY_PATH="/path/to/pp"
   which ${PAR_RUN}
 #
   unset KMP_AFFINITY
