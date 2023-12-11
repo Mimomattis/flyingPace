@@ -398,32 +398,32 @@ def write_cpmd_input(structure: Atoms, input_file_path: str, dft_dict: dict):
         if "maxStep" in input_data_dict:
             input += input_options["maxStep"]
         else:
-            log.warning("'maxStep' type is not provided in 'dftParams' section, please specify it")
-            raise ValueError("'maxStep' type in 'dftParams' is not known")
+            log.warning("'maxStep' is not provided in 'dftParams' section, please specify it")
+            raise ValueError("'maxStep' in 'dftParams' is not known")
         
         if "timeStep" in input_data_dict:
             input += input_options["timeStep"]
         else:
-            log.warning("'timeStep' type is not provided in 'dftParams' section, please specify it")
-            raise ValueError("'timeStep' type in 'dftParams' is not known")
+            log.warning("'timeStep' is not provided in 'dftParams' section, please specify it")
+            raise ValueError("'timeStep' in 'dftParams' is not known")
         
         if "trajStep" in input_data_dict:
             input += input_options["trajStep"]
         else:
-            log.warning("'trajStep' type is not provided in 'dftParams' section, please specify it")
-            raise ValueError("'trajStep' type in 'dftParams' is not known")
+            log.warning("'trajStep' is not provided in 'dftParams' section, please specify it")
+            raise ValueError("'trajStep' in 'dftParams' is not known")
         
         if "noseParams" in input_data_dict:
             input += input_options["noseParams"]
         else:
-            log.warning("'noseParams' type is not provided in 'dftParams' section, please specify it")
-            raise ValueError("'noseParams' type in 'dftParams' is not known")
+            log.warning("'noseParams' is not provided in 'dftParams' section, please specify it")
+            raise ValueError("'noseParams' in 'dftParams' is not known")
         
         if "temp" in input_data_dict:
             input += input_options["temp"]
         else:
-            log.warning("'temp' type is not provided in 'dftParams' section, please specify it")
-            raise ValueError("'temp' type in 'dftParams' is not known")
+            log.warning("'temp' is not provided in 'dftParams' section, please specify it")
+            raise ValueError("'temp' in 'dftParams' is not known")
         
         input += "    EXTRAPOLATE WFN STORE\n        6\n"
         input += "    STORE\n        {maxStep}\n"

@@ -295,7 +295,7 @@ def generate_lammps_input(InputData: DataReader):
 
     directory_dict = InputData.directory_dict
 
-    #Read what is needed from pacemaker_dict
+    #Read what is needed from exploration_dict
     assert isinstance(exploration_dict, dict)
     if "explorationParams" in exploration_dict:
         input_data_dict = exploration_dict["explorationParams"]
@@ -342,7 +342,7 @@ fix 6 all nvt temp {startTemp} {endTemp} $(100.0*dt)\n\
 run {steps}',
         
         'NPT' : '\nvelocity all create {startTemp} 67 dist gaussian\n\
-fix 6 all npt temp {startTemp} {endTemp} $(100.0*dt) aniso {startPress} {startPress} $(1000.0*dt)\n\
+fix 6 all npt temp {startTemp} {endTemp} $(100.0*dt) {nptMode} {startPress} {startPress} $(1000.0*dt)\n\
 run {steps}',
     },           
 }
@@ -389,6 +389,10 @@ run {steps}',
     input += "\n#-----------------------------------\n\
 #Simulation\n\
 #-----------------------------------\n\n"
+
+    #Number of steps
+    if not "steps" in input_data_dict:
+        input_data_dict["steps"] = 50000
 
     #Print thermodynamic information
     if not "thermo" in input_data_dict:
@@ -449,6 +453,13 @@ run {steps}',
         elif "pressRamp" in input_data_dict:
             input_data_dict["startPress"] = input_data_dict["tempPress"].split()[0]
             input_data_dict["endPress"] = input_data_dict["tempPress"].split()[1]
+        else: 
+            input_data_dict["press"] = 1.0
+            input_data_dict["startPress"] = input_data_dict["press"]
+            input_data_dict["endPress"] = input_data_dict["press"]
+
+        if not "nptMode" in input_data_dict:
+            input_data_dict["nptMode"] = 'iso'
         
 
     #Type of run
@@ -993,11 +1004,7 @@ def aimd_to_pickle(InputData: DataReader):
 
     #Reference energies
     if (reference_energy_mode == 'auto'):
-        energies_corr = np.array(energy_list)
-        ref_e= energies_corr.max()
-        energies_corr = energies_corr - ref_e
-        ref_e = np.full(shape=len(energy_list),fill_value=ref_e)
-        #energies_corr.tolist()
+        ref_e = np.full(shape=len(energy_list),fill_value=None)
     if (reference_energy_mode == 'singleAtomEnergies'):
         assert isinstance(reference_energy, dict)
         ref_e = 0 
