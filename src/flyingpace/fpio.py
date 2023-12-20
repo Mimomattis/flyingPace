@@ -670,13 +670,22 @@ def merge_pickle(InputData: DataReader):
     '''
 
     directory_dict = InputData.directory_dict
+    pacemaker_dict = InputData.pacemaker_dict
 
     manager_dict = InputData.manager_dict
 
     #Get relevant directories from directory_dict
     assert isinstance(directory_dict, dict)
     local_dft_dir = directory_dict["local_dft_dir"]
-    prev_local_dft_dir = flyingpace.dirmanager.get_prev_path(local_dft_dir)
+
+    #Read what is needed from pacemaker_dict
+    assert isinstance(pacemaker_dict, dict)
+    if "referenceEnergyMode" in pacemaker_dict:
+        reference_energy_mode = pacemaker_dict["referenceEnergyMode"]
+        log.info(f"Reference energy mode: {reference_energy_mode}")
+    else:
+        log.warning("No 'referenceEnergyMode' provided in input file, the default is auto")
+        reference_energy_mode = 'auto'
 
     system_name = manager_dict["systemName"]
     new_pickle_file_path = os.path.join(local_dft_dir, f"new_dft_data.pckl.gzip")
@@ -691,11 +700,28 @@ def merge_pickle(InputData: DataReader):
     new_data = pd.read_pickle(new_pickle_file_path, compression="gzip")
     old_data = pd.read_pickle(prev_pickle_file_path, compression="gzip")
 
-    reference_energy = old_data.loc[:,'reference_energy'][0]
-    energy_corrected = new_data.loc[:,'energy']-reference_energy
+    if (reference_energy_mode == 'auto'):
+        reference_energy = None
+    elif (reference_energy_mode == 'singleAtomEnergies'):
+        if "referenceEnergies" in pacemaker_dict:
+            reference_energy = pacemaker_dict["referenceEnergies"]
+            log.info(f"Reference energies given as atomic energies")
+        else:
+            log.warning("No 'referenceEnergies' provided in input file, please specify it")
+            raise ValueError("No 'referenceEnergies' provided in input file, please specify it")
 
-    new_data['energy_corrected'] = energy_corrected
-    new_data['reference_energy'] = reference_energy
+        atoms = new_data["ase_atoms"].values
+        ref_energies = []
+        for atom in atoms:
+            element_dict = Counter(atom.get_chemical_symbols())
+            ref_e = 0
+            for element in element_dict:
+                ref_e += element_dict[element]*reference_energy[element]
+            ref_energies.append(ref_e)
+
+        energy_corrected = new_data.loc[:,'energy']-ref_energies
+
+        new_data['energy_corrected'] = energy_corrected
 
     combined_data = pd.concat([old_data,new_data], ignore_index=True)
 
@@ -1004,23 +1030,29 @@ def aimd_to_pickle(InputData: DataReader):
 
     #Reference energies
     if (reference_energy_mode == 'auto'):
-        ref_e = np.full(shape=len(energy_list),fill_value=None)
+        #Save all data in Data Frame
+        data = {'energy': energy_list,
+                'forces': forces_list,
+                'ase_atoms': atoms_list,
+                }
     if (reference_energy_mode == 'singleAtomEnergies'):
         assert isinstance(reference_energy, dict)
-        ref_e = 0 
-        element_dict = Counter(symbols)
-        for element in element_dict:
-            ref_e += element_dict[element]*reference_energy[element]
-        energies_corr = energies_corr - ref_e
-        ref_e = np.full(shape=len(energy_list),fill_value=ref_e)
+        ref_energies = []
+        for atom in atoms_list:
+            element_dict = Counter(atom.get_chemical_symbols())
+            ref_e = 0
+            for element in element_dict:
+                ref_e += element_dict[element]*reference_energy[element]
+            ref_energies.append(ref_e)
         
-    #Save all data in Data Frame
-    data = {'energy': energy_list,
-            'forces': forces_list,
-            'ase_atoms': atoms_list,
-            'energy_corrected': energies_corr,
-            'reference_energy' : ref_e
-            }
+        energy_corrected = np.asarray(energy_list) - ref_energies
+        
+        #Save all data in Data Frame
+        data = {'energy': energy_list,
+                'forces': forces_list,
+                'ase_atoms': atoms_list,
+                'energy_corrected': energy_corrected,
+                }
 
     df = pd.DataFrame(data)
     df.to_pickle(pickle_file_path, compression='gzip', protocol=4)
