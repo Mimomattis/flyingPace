@@ -348,11 +348,17 @@ def write_cpmd_input(structure: Atoms, input_file_path: str, dft_dict: dict):
 
         #Input options regarding scf
         'maxIter' : '    MAXITER\n        {maxIter}\n',
+        'minimizer':{
+            'pcg' : '    PCG MINIMIZE\n    MEMORY BIG\n',
+            'diis' : '    ODIIS NO_RESET=-1\n        10\n'
+        },
         'convOrbital' : '    CONVERGENCE ORBITALS\n        {convOrbital}\n',
         'splinePoints' : '    SPLINE POINTS\n        {splinePoints}\n',
         'functional' :{
             'pbeSol' : '    GRADIENT CORRECTION PBESX PBESC\n',
             'pbe' : '    GRADIENT CORRECTION PBEX PBEC\n',
+            'pbeXc': '    XC_DRIVER\n    FUNCTIONAL GGA_XC_PBE\n',
+            'pbe0Xc': '    XC_DRIVER\n    FUNCTIONAL HYB_GGA_XC_PBE0\n',
         },
         'pwCutoff' : '    CUTOFF\n        {pwCutoff}\n',
         'vdwCorrection' : '&VDW\n    GRIMME CORRECTION\n    VDW VERSION\n\
@@ -360,7 +366,7 @@ def write_cpmd_input(structure: Atoms, input_file_path: str, dft_dict: dict):
     VDW INTERACTION PAIRS\n        1 1\n    END GRIMME CORRECTION\n&END\n'
     }
 
-    cpmd_technical_block = "    ODIIS NO_RESET=-1\n        10\n    MEMORY BIG\n\
+    cpmd_technical_block = "    MEMORY BIG\n\
     PRINT FORCES ON\n    RNLSM_AUTOTUNE\n        20\n    USE_BATCHFFT ON\n    ALL2ALL_BATCHSIZE \n       4000\n\
     TUNE_FFT_BATCHSIZE ON\n        10\n    BLOCKSIZE_USPP\n        500\n    PARA_USE_MPI_IN_PLACE\n\
     PARA_BUFF_SIZE\n        0\n    PARA_STACK_BUFF_SIZE\n        0\n    DISTRIBUTED FNL ROT OFF\n\
@@ -434,6 +440,12 @@ def write_cpmd_input(structure: Atoms, input_file_path: str, dft_dict: dict):
     else:
         input_data_dict["maxIter"] = 100
         input += input_options["maxIter"]
+
+    if "minimizer" in input_data_dict:
+        if input_data_dict["minimizer"] in input_options["minimizer"]:
+            input += input_options["minimizer"][input_data_dict["minimizer"]]
+        else:
+            input += input_options["minimizer"]["diis"]
     
     if "convOrbital" in input_data_dict:
         input += input_options["convOrbital"]
