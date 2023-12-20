@@ -173,6 +173,8 @@ def follow_up_pacemaker(InputData: DataReader):
 
     if os.path.exists(local_active_set_file_path):
         log.warning(f"There already exists the .asi file {local_active_set_file_path}")
+        #Add active set file path to InputData
+        InputData.change_data("manager_dict", "activeSetFilePath", local_active_set_file_path)
         return
 
     #Check if all nessesary files exist
