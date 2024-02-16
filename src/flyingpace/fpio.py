@@ -342,7 +342,7 @@ fix 6 all nvt temp {startTemp} {endTemp} $(100.0*dt)\n\
 run {steps}',
         
         'NPT' : '\nvelocity all create {startTemp} 67 dist gaussian\n\
-fix 6 all npt temp {startTemp} {endTemp} $(100.0*dt) {nptMode} {startPress} {startPress} $(1000.0*dt)\n\
+fix 6 all npt temp {startTemp} {endTemp} $(100.0*dt) {nptMode} {startPress} {endPress} $(1000.0*dt)\n\
 run {steps}',
     },           
 }
@@ -451,8 +451,8 @@ run {steps}',
             input_data_dict["startPress"] = input_data_dict["press"]
             input_data_dict["endPress"] = input_data_dict["press"]
         elif "pressRamp" in input_data_dict:
-            input_data_dict["startPress"] = input_data_dict["tempPress"].split()[0]
-            input_data_dict["endPress"] = input_data_dict["tempPress"].split()[1]
+            input_data_dict["startPress"] = input_data_dict["pressRamp"].split()[0]
+            input_data_dict["endPress"] = input_data_dict["pressRamp"].split()[1]
         else: 
             input_data_dict["press"] = 1.0
             input_data_dict["startPress"] = input_data_dict["press"]
@@ -783,12 +783,19 @@ def extrapolative_dump_to_pickle(InputData: DataReader):
     log.info(f"Gathering extrapolative structures in 'extrapolative_structures.pckl.gzip'")
 
     manager_dict = InputData.manager_dict
+    exploration_dict = InputData.exploration_dict
 
     directory_dict = InputData.directory_dict
 
     #Read elementlist from manager_dict
     element_list = manager_dict["elementList"]
-    
+
+    #Read elementlist from manager_dict
+    if "takeLastStructure" in exploration_dict:
+        take_last_structure = exploration_dict["takeLastStructure"]
+    else:
+        take_last_structure = False
+
     #Get relevant directories from directory_dict
     assert isinstance(directory_dict, dict)
     local_exploration_dir = directory_dict["local_exploration_dir"]
@@ -822,6 +829,10 @@ def extrapolative_dump_to_pickle(InputData: DataReader):
             at.set_pbc(True)
 
     df = pd.DataFrame({"ase_atoms": structures})
+
+    if take_last_structure:
+        df = df.iloc[-1]
+
     df.to_pickle(pickle_file_path, compression='gzip', protocol=4)
     log.info(f"Saved {pickle_file_path}")
 
@@ -869,7 +880,19 @@ def prepare_scf_calcs_from_pickle(InputData: DataReader):
         log.warning(f"No extrapolative structures found!")
         raise RuntimeError(f"No extrapolative structures found!")
 
-    structures = data.loc[:,'ase_atoms']
+    if len(data) == 1:
+        structure = data['ase_atoms'][0]
+        log.info(f"Prepare scf calculations in {local_dft_dir}")
+        scf_dir = os.path.join(local_dft_dir, f"scf.1")
+        scf_input_file_path = os.path.join(scf_dir, "INP")
+        os.mkdir(scf_dir)
+        write_input_map[dft_code](structure, scf_input_file_path, dft_dict)
+
+        return
+        
+
+    else:
+        structures = data.loc[:,'ase_atoms']
 
     log.info(f"Prepare scf calculations in {local_dft_dir}")
 
