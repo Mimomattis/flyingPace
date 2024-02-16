@@ -143,14 +143,16 @@ def read_cpmd_md(aimd_input_file_path: str, local_dft_dir:str):
     with open(aimd_input_file_path, 'r') as f:
         cpmd_lines = f.readlines()
     
+    #Default is atomic units
+    angstrom = False
+
     for idx, line in enumerate(cpmd_lines):
         if cpmd_cell in line:
             cell_idx = idx
 
+        #Check if lengths are given in angstrom
         if 'ANGSTROM' in line:
             angstrom = True
-        else:
-            angstrom = False
     
     cell = []
     for i in range(3):
